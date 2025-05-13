@@ -113,7 +113,7 @@ static int ReadSampleCode(const char *name)
                 ",vbr %d, sarw %d, sarh %d, src %dx%d, dst %dx%d, duration %d, scale %d"
                 ", channels %x, depth %d, samplerate %d]"
                 ", v[%d, %" PRId64 ", %" PRId64 ", %s ...]\n a[%d, %" PRId64 ", %" PRId64 ", %s ...]\n "
-                "s[%d, %" PRId64 ", %" PRId64 ", %s]\n ext[%d, %s], user data[%d, 0x%x, %" PRId64 "]\n"
+                "s[%d, %" PRId64 ", %" PRId64 ", %s]\n user data:[%d, 0x%x, %" PRId64 "]\n"
                 , now
                 , r_index, w_index
                 , ohp.u_videofourcc, ohp.u_audiofourcc
@@ -134,8 +134,6 @@ static int ReadSampleCode(const char *name)
                 , datactx->i64_spts
                 , datactx->i64_sdts
                 , subsample
-                , datactx->i_CCLen
-                , exsample
                 , datactx->i_userDataLen
                 , datactx->i_userDataType
                 , datactx->i64_userDataCT
@@ -160,10 +158,27 @@ static int ReadSampleCode(const char *name)
     return 0;
 }
 
-
-int main()
+static void help(const char *prog)
 {
-    return ReadSampleCode("test");
+    printf("Usage:\n"
+           "    %s <shmname>\n"
+           "ex:%s vx1"
+           "\n"
+           , prog
+           , prog
+           );
+    return;
+}
+
+int main(int argc, const char *argv[])
+{
+    if (argc < 2)
+    {
+        help(argv[0]);
+        return -1;
+    }
+
+    return ReadSampleCode(argv[1]);
 }
 
 
