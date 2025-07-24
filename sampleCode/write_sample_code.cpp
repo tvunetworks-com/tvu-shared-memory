@@ -11,6 +11,9 @@
 #define VIDEO_FRAME_SIZE                        10240
 #define TVU_LINUX 1
 
+#define _MAX(a,b)    ((a)>(b))?(a):(b)
+#define _MIN(a,b)    ((a)<(b))?(a):(b)
+
 static inline
 int64_t _xxtvuutil_get_sys_ms64()
 {
@@ -646,8 +649,11 @@ static int WriteMetadataSampleCode(const char *name)
     int64_t     base    = 0;
     int64_t     next_pts= 0;
     uint32_t    itemSize = 0;
-    uint32_t    frameMs = 40;
+    int    frameMs = 40;
     uint32_t shmItemHeadSize = 1024;
+    int pretendMs = 300;
+    int pretendCount = (pretendMs+frameMs)/frameMs;
+    count = _MAX(count, pretendCount);
 
     now = TVUUTIL_GET_SYS_MS64();
     base = now;
@@ -672,7 +678,7 @@ static int WriteMetadataSampleCode(const char *name)
         now = TVUUTIL_GET_SYS_MS64();
         next_pts    = base + i * frameMs;
 
-        if (now < next_pts)
+        if (now + pretendMs < next_pts)
         {
             Sleep(1);
             continue;
