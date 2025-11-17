@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\sharememory.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\shm_variable_item_ring_buff.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buffer_ctrl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\file_lock.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\sharememory.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\file_lock_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\file_lock.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\sharememory_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\shm_variable_item_ring_buff.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\shmhead.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\buffer_controller.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\include\buffer_ctrl.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buffer_controller_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+</Project>

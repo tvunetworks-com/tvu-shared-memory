@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\libshm_data_protocol.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshm_media.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshm_media_raw_data_opt.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshm_media_variable_item.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_common.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_control_protocol.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_data_protocol.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_encoding_protocol.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_rawdata.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_tvulive_protocol.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_variableitem.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\libshmmedia_variableitem_rawdata.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libshm_media_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libshm_media_variable_item_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libshmmedia_control_protocol_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\libshmmedia_tvulive_protocol_internal.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\libshm_media.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshm_media_raw_data_opt.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshm_media_variable_item.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshmmedia_control_protocol.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshmmedia_encoding_protocol.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshmmedia_tvulive_protocol.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\libshmmedia_variableitem_rawdata.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

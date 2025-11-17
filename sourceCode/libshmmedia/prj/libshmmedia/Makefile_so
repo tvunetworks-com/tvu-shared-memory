@@ -1,0 +1,81 @@
+#!/bin/bash
+
+######################################
+#   lotus to build player on cygwin
+######################################
+PRJ_PATH=$(shell pwd)
+
+BUILD_PATH=$(PRJ_PATH)/../../build
+include $(BUILD_PATH)/Makefile.flat
+
+
+PRJ_OBJ=$(PRJ_PATH)/obj
+SUF_SRC=.cpp
+
+DEP_LIBSHMMEDIA_PROTO_PATH=$(PRJ_PATH)/../libshmmediaProto
+DEP_LIBVA_ITEM_SHARED_MEMORY_PATH=$(PRJ_PATH)/../libvaItemSharedMemory
+DEP_LIBSHMUTIL_PATH=$(PRJ_PATH)/../libshmUtil
+
+VISHM_M?=1
+ifeq ($(VISHM_M), 1)
+CFLAGS+=-D_LIBSHM_VARIABLE_ITEM_M
+endif
+CFLAGS+= -fPIC -I$(PRJ_PATH)/include \
+-I$(DEP_LIBSHMMEDIA_PROTO_PATH)/include \
+-I$(DEP_LIBSHMMEDIA_PROTO_PATH)/src \
+-I$(DEP_LIBVA_ITEM_SHARED_MEMORY_PATH)/include \
+-I$(DEP_LIBVA_ITEM_SHARED_MEMORY_PATH)/src/include \
+-I$(PRJ_PATH)/../libsharememory/include \
+-I$(PRJ_PATH)/../libsharememory/src/include \
+-I$(PRJ_PATH)/../libtvufourcc/include \
+-I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include \
+
+
+LDFLAGS_EXE+=$(LDFLAGS) -Llib -L$(PRJ_PATH)/../libsharememory/lib -lshmmediawrap -L$(DEP_LIBSHMUTIL_PATH)/lib -lshmUtil
+LDFLAGS_SO+=$(LDFLAGS) -L$(DEP_LIBSHMMEDIA_PROTO_PATH)/lib -L$(PRJ_PATH)/../libsharememory/lib -L$(DEP_LIBSHMUTIL_PATH)/lib
+LIBS_SO=-Wl,--whole-archive $(DEP_LIBSHMMEDIA_PROTO_PATH)/lib/libshmmediaProto.a -Wl,--no-whole-archive -lsharememory -Wl,--no-whole-archive -lshmUtil
+
+ifeq ($(VISHM_M), 1)
+LDFLAGS_SO+=-L$(DEP_LIBVA_ITEM_SHARED_MEMORY_PATH)/lib
+LIBS_SO+=-lvaItemSharedMemory
+endif
+
+SRCS=$(wildcard $(PRJ_PATH)/src/*$(SUF_SRC))
+OBJS=$(patsubst %$(SUF_SRC), %.o, $(SRCS))
+TEST_SRCS=$(wildcard $(PRJ_PATH)/test_libshmmedia/*$(SUF_SRC))
+TEST_OBJS=$(patsubst %$(SUF_SRC), %.o, $(TEST_SRCS))
+TEST_EXE=test_shmmedia
+LIB_PATH=$(PRJ_PATH)/lib
+LIB_SHMMEDIA_AR=lib/libshmmedia.a
+LIB_SHMMEDIA_SO=lib/libshmmediawrap.so
+
+all:$(LIB_SHMMEDIA_SO) #$(TEST_EXE)
+	@#echo $(OBJS)
+
+$(LIB_SHMMEDIA_AR):$(OBJS) 
+	mkdir -p $(LIB_PATH)
+	$(AR) -rcs $@ $(OBJS)
+	
+$(LIB_SHMMEDIA_SO):$(LIB_SHMMEDIA_AR) 
+	mkdir -p $(LIB_PATH)
+	$(CXX) -shared -fPIC -o $@ $(OBJS) $(LDFLAGS_SO) $(LIBS_SO) $(DEP_FOUNDATION_OBJ) -lrt
+
+$(OBJS):%.o:%$(SUF_SRC)
+	$(CXX) -o $@ $(CFLAGS) -c $^
+
+$(TEST_OBJS):%.o:%$(SUF_SRC)
+	$(CXX) -o $@ $(CFLAGS) -c $^
+
+$(TEST_EXE):$(TEST_OBJS) $(LIB_SHMMEDIA_SO)
+	$(CXX) -o $@ $< $(LDFLAGS_EXE)
+
+clean:
+	$(RM) $(OBJS) $(TEST_OBJS) $(LIB_SHMMEDIA_SO) $(LIB_SHMMEDIA_AR) $(TEST_EXE)
+
+install:
+	@
+uninstall:
+	@
+
+.PHONY:all clean install uninstall
+

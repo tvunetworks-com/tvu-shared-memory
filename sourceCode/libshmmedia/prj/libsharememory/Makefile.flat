@@ -1,0 +1,29 @@
+#!/bin/bash
+
+##########################
+#
+##########################
+
+CROSS_TOOLS=i686-pc-mingw32-
+
+SUF_BIN=.exe
+SUF_SRC=.cpp
+
+ifeq ($(CROSS_TOOLS),i686-pc-mingw32-)
+    FLATFLAGS=-DMINGW
+endif
+
+CC=$(CROSS_TOOLS)gcc
+CXX=$(CROSS_TOOLS)g++
+LD=$(CROSS_TOOLS)ld
+AR=$(CROSS_TOOLS)ar
+AS=$(CROSS_TOOLS)as
+NM=$(CROSS_TOOLS)nm
+RANLIB=$(CROSS_TOOLS)ranlib
+STRIP=$(CROSS_TOOLS)strip
+
+PROFILE=-pg
+
+CFLAGS= -g $(FLATFLAGS) #$(PROFILE)
+LDFLAGS= -g #$(PROFILE)
+

@@ -1,0 +1,36 @@
+######################################
+#   lotus compile test_libshmmedia
+######################################
+PRJ_PATH=$(shell pwd)/../..
+SRC_PATH=$(shell pwd)
+SUF_SRC=.cpp
+DEP_1=$(PRJ_PATH)/../libshmmediaProto
+DEP_2=$(PRJ_PATH)/../libvaItemSharedMemory
+DEP_3=$(PRJ_PATH)/../libsharememory
+INCLUDS_PATHS+=-I$(DEP_2)/include -I$(DEP_3)/include
+CFLAGS+= -g -fPIC -DTVU_LINUX -I$(PRJ_PATH)/include -I$(DEP_1)/include $(INCLUDS_PATHS)
+LDFLAGS+= -L$(PRJ_PATH)/lib -L$(DEP_1)/lib -L$(DEP_3)/lib -L$(DEP_2)/lib -lshmmedia -lshmmediaProto -lsharememory -lvaItemSharedMemory -pthread -lrt
+
+TEST_SRCS=$(wildcard $(SRC_PATH)/*$(SUF_SRC))
+TEST_OBJS=$(patsubst %$(SUF_SRC), %.o, $(TEST_SRCS))
+TEST_EXE=test_shmmedia
+
+all:$(TEST_EXE)
+	@#echo $(TEST_OBJS)
+
+$(TEST_OBJS):%.o:%$(SUF_SRC)
+	$(CXX) -o $@ $(CFLAGS) -c $^
+
+$(TEST_EXE):$(TEST_OBJS) $(LIB_AR_PRJ)
+	$(CXX) -o $@ $< $(LDFLAGS)
+
+clean:
+	$(RM) $(TEST_OBJS) $(TEST_EXE)
+
+install:
+	@
+uninstall:
+	@
+
+.PHONY:all clean install uninstall
+

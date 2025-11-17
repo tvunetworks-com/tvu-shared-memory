@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libshmmedia", "libshmmedia_x64.vcproj", "{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9} = {C91E933A-C478-4245-9D63-62E69AF9CCF9}
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC} = {01327AC6-1A98-424B-8F92-37ABA4D823BC}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsharememory", "..\libsharememory\libsharememory_x64.vcproj", "{C91E933A-C478-4245-9D63-62E69AF9CCF9}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libtvuutil", "..\libtvuutil\libtvuutil_x64.vcproj", "{01327AC6-1A98-424B-8F92-37ABA4D823BC}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_libshmmedia", "test_libshmmedia\test_libshmmedia_dll_x64.vcproj", "{AF4722B8-F803-4503-8E4D-0A50891033D1}"
+	ProjectSection(ProjectDependencies) = postProject
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D} = {432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Debug|Win32.Build.0 = Debug|Win32
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Debug|x64.ActiveCfg = Debug|x64
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Debug|x64.Build.0 = Debug|x64
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Release|Win32.ActiveCfg = Release|Win32
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Release|Win32.Build.0 = Release|Win32
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Release|x64.ActiveCfg = Release|x64
+		{432F7B31-68E8-4FCF-AFD7-81D7A016BE9D}.Release|x64.Build.0 = Release|x64
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Debug|Win32.Build.0 = Debug|Win32
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Debug|x64.ActiveCfg = Debug|x64
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Debug|x64.Build.0 = Debug|x64
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Release|Win32.ActiveCfg = Release|Win32
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Release|Win32.Build.0 = Release|Win32
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Release|x64.ActiveCfg = Release|x64
+		{C91E933A-C478-4245-9D63-62E69AF9CCF9}.Release|x64.Build.0 = Release|x64
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Debug|Win32.ActiveCfg = Debug|Win32
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Debug|Win32.Build.0 = Debug|Win32
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Debug|x64.ActiveCfg = Debug|x64
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Debug|x64.Build.0 = Debug|x64
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Release|Win32.ActiveCfg = Release|Win32
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Release|Win32.Build.0 = Release|Win32
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Release|x64.ActiveCfg = Release|x64
+		{01327AC6-1A98-424B-8F92-37ABA4D823BC}.Release|x64.Build.0 = Release|x64
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Debug|Win32.Build.0 = Debug|Win32
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Debug|x64.ActiveCfg = Debug|x64
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Debug|x64.Build.0 = Debug|x64
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Release|Win32.ActiveCfg = Release|Win32
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Release|Win32.Build.0 = Release|Win32
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Release|x64.ActiveCfg = Release|x64
+		{AF4722B8-F803-4503-8E4D-0A50891033D1}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

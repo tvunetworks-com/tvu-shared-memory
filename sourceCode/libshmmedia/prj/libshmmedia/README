@@ -1,0 +1,39 @@
+Extended data of share memory
+
+how to parse the extended data,
+1. 
+int LibShmMediaReadData(
+      libshm_media_handle_t         h
+      , libshm_media_head_param_t   *pmh
+      , libshm_media_item_param_t   *pmi
+);
+can reade out share memory data to pmi,
+
+2. if 
+libshm_media_item_param_t.i_userDataType
+is LIBSHM_MEDIA_TYPE_TVU_EXTEND_DATA_V2(4),
+then use 
+LibshmMediaExtDataParseBuff(libshmmedia_extended_data_context_t h, libshm_media_item_param_t.p_userData, libshm_media_item_param_t.i_userDataLen)
+
+3. use 
+LibshmMediaExtDataGetOneEntry
+to get every entry out from libshmmedia_extended_data_context_t, 
+Each entry has members of len, type, data point, 
+The entry type can be value as 
+enum ELibShmMediaExtendDataTypeV2
+{
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_UNKNOWN = 0,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_UID = 1,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_CC608_CDP = 2,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_CAPTION_TEXT = 3,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_PRODUCER_STREAM_INFO = 4,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_RECEIVER_INFO = 5,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SCTE104_DATA = 6,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_TIMECODEINDEX = 7,
+};
+
+so you would get the timecode value if the type of entry is LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_TIMECODEINDEX, and set the value to chunk of virtual clip.
+
+TimeCode definition:
+1. Currently, timecode is use uint32_t 32bit value, as 1, 2, 3,....
+the endian would use host endian, for reader & writer of share memory must be in the same PC.

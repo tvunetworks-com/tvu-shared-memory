@@ -1,0 +1,7 @@
+../prj/libshmmedia/include/libshmmedia.h
+../prj/libshmmedia/include/libshm_media.h
+../prj/libshmmedia/include/libshmmedia_variableitem.h
+../prj/libshmmedia/include/libshm_media_variable_item.h
+../prj/libshmmedia/include/libshmmedia_common.h
+../prj/libshmmediaProto/include/*
+../prj/libtvufourcc/include/libtvu_media_fourcc.h

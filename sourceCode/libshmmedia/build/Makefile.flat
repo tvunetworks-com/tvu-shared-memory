@@ -1,0 +1,66 @@
+##########################
+#
+##########################
+
+#CROSS_TOOLS=i686-pc-mingw32-
+
+SUF_SRC=.cpp
+
+TARGET_OS=LINUX
+#DEBUG=1
+
+#INTEL_QSV_LIBS=-lintelenc -lhevcenc -lmfx -lva -lva-drm -ldrm
+
+
+FEC_AR_LIBS=-lFecStreamReceiver -lFecStreamTransmitter \
+				-lFecStreamCommon -lFecNetwork -lRqEncoderWrapper \
+				-lRqDecoderWrapper -lRQEncoder -lRQDecoder -lTvuFoundation
+
+FEC_SO_LIBS=-lFecStreamReceiverWrapper -lFecStreamTransmitterWrapper
+
+FEC_LIBS=$(FEC_SO_LIBS)
+
+ifeq ($(TARGET_OS), MINGW)
+    FLATFLAGS=TVU_MINGW
+    D_FLATFLAGS=-DTVU_MINGW
+    SUF_BIN=.exe
+endif
+
+ifeq ($(TARGET_OS), LINUX)
+    FLATFLAGS=TVU_LINUX
+    D_FLATFLAGS=-DTVU_LINUX -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
+    SUF_BIN=
+endif
+
+#FLATFLAGS=TVU_LINUX
+#D_FLATFLAGS=-DTVU_LINUX -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
+#SUF_BIN=
+
+CC=$(CROSS_TOOLS)gcc
+CXX=$(CROSS_TOOLS)g++
+LD=$(CROSS_TOOLS)ld
+AR=$(CROSS_TOOLS)ar
+AS=$(CROSS_TOOLS)as
+NM=$(CROSS_TOOLS)nm
+RANLIB=$(CROSS_TOOLS)ranlib
+STRIP=$(CROSS_TOOLS)strip
+
+PROFILE=-pg
+SYMBOLS=
+
+ifeq ($(DEBUG), 1)
+PARAM_OF_OPT=-O0
+SYMBOLS=-g
+else
+PARAM_OF_OPT=-O3
+SYMBOLS=-g
+endif
+
+CFLAGS+= $(SYMBOLS) -fPIC $(D_FLATFLAGS) $(PARAM_OF_OPT) -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable #$(PROFILE)
+LDFLAGS+= $(SYMBOLS) $(PARAM_OF_OPT)  #$(PROFILE)
+MODULE_LIBS= #-lccmodule
+SHMMEDIA_LIBS= -lshmmedia -lshmmediaProto -lsharememory -lvaItemSharedMemory -lshmUtil -ltvuMediaInfo -lrt -lpthread -lz
+COMMON_LIBS= $(INTEL_QSV_LIBS) -lasi -ljson-c -lva-drm -lva-x11 -lva -lpthread -lz -lm -ldl -lrt -lstdc++ '-Wl,-rpath,$$ORIGIN'
+TVUCLIP_LIBS=-lplaymanager -lstoragemanager -lgenericutils -lsqlite3 -lm
+#COMMON_LIBS= -lva-drm -lva-x11 -lva -lxcb -lxcb -lxcb-shm -lxcb-shape -lxcb-xfixes -lpthread -lz -lm -ldl -lrt -lstdc++ '-Wl,-rpath,$$ORIGIN'
+
