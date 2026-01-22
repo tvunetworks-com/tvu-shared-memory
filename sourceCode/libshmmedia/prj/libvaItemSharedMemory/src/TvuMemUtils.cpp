@@ -21,7 +21,11 @@ History: Tony Guo on Feb 11, 2014: Created
 
 #include "TvuMemUtils.h"
 #include "TvuTimeUtils.h"
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <string.h>
 #include <time.h>
 
