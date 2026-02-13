@@ -53,6 +53,7 @@ enum ELibShmMediaExtendDataTypeV2
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_HDR_METADATA = 9,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SCTE35_DATA = 10,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_TIMECODE_WITH_FPS_INDEX = 11,
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_TVU_TIMESTAMP = 11,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_PIC_STRUCT = 12,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SOURCE_TIMESTAMP = 13,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_TIMECODE = 14,
@@ -64,6 +65,7 @@ enum ELibShmMediaExtendDataTypeV2
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_GOP_POC_V1 = 20,
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_MEDIA_HEAD_V1 = 21, /* this is reserved for media head with key-value */
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SMPTE336M = 22, /* this used the concat-binary protocol */
+    LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_KEY_TYPE_VALUE_PROTO = 23, /* this used the concat-binary protocol */
 
      /* reserver protocol of subtitle for future. */
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_PROTOCOL_EXTENTION_RESERVER = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_PRIVATE_PROTOCOL_EXTENTION_STRUCTURE, /* reserver protocol of subtitle for future. */
@@ -82,6 +84,16 @@ enum ELibShmMediaExtendDataTypeV2
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_STL = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_STL, /* Spruce subtitle format */
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_SUBVIEW = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_SUBVIEW, /* SubViewer subtitle */
     LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_SUBVIEWV1 = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_SUBVIEWV1, /* SubViewer V1 subtitle */
+};
+
+enum ELibShmMediaMetaKeyValue
+{
+    kLibShmMediaMetaKeyValueTypeReserverVal = 0,
+    kLibShmMediaMetaKeyValueTypeColorPrimariesVal = 1,
+    kLibShmMediaMetaKeyValueTypeColorTransferCharacteristicVal = 2,
+    kLibShmMediaMetaKeyValueTypeColorSpaceVal = 3,
+    kLibShmMediaMetaKeyValueTypeVideoFullRangeFlagVal = 4,
+    kLibShmMediaMetaKeyValueTypeTvutimestampVal = 5,
 };
 
 typedef struct _LibShmMediaExtendedEntryData
@@ -122,7 +134,7 @@ public:
     void setUsingExternalBuf(bool b) {_bUsingExternalDataBuf = b;}
 
     CLibShmMediaExtendedDataV2();
-    ~CLibShmMediaExtendedDataV2();
+    virtual ~CLibShmMediaExtendedDataV2();
 
 private:
     uint32_t    m_uVersion;

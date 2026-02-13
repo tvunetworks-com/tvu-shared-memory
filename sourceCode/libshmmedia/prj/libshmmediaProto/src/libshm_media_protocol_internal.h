@@ -17,6 +17,7 @@
 #include "libshm_media_struct.h"
 #include "libshm_media_protocol.h"
 #include "libshm_media_protocol_log_internal.h"
+#include "libshm_util_endian.h"
 #include <stdint.h>
 #include <string.h>
 

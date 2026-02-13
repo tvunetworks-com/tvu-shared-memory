@@ -143,6 +143,42 @@ typedef struct _ShmExtendDataStruct
     const uint8_t*      p_smpte336m;
     int                 i_smpte336m;
     /* --> used to express smpte 336M data, using bin-concat protocol. */
+
+    /**
+      * Chromaticity coordinates of the source primaries.
+      * These values match the ones defined by ISO/IEC 23091-2_2019 subclause 8.1 and ITU-T H.273.
+      */
+    bool                bHasColorPrimariesVal_;
+    uint32_t            uColorPrimariesVal_;
+
+    /**
+     * Color Transfer Characteristic.
+     * These values match the ones defined by ISO/IEC 23091-2_2019 subclause 8.2.
+     */
+    bool                bHasColorTransferCharacteristicVal_;
+    uint32_t            uColorTransferCharacteristicVal_;
+
+    /**
+     * YUV colorspace type.
+     * These values match the ones defined by ISO/IEC 23091-2_2019 subclause 8.3.
+     */
+    bool                bHasColorSpaceVal_;
+    uint32_t            uColorSpaceVal_;
+
+    /**
+     * YUV colorspace type.
+     * These values match the ones defined by ISO/IEC 23091-2_2019 subclause 8.3.
+     */
+    bool                bHasVideoFullRangeFlagVal_;
+    uint32_t            uVideoFullRangeFlagVal_;
+
+    /**
+     * used to store the tvutimestamp status.
+     * similar to p_timecode_fps_index
+     */
+    bool                bGotTvutimestamp;
+    uint64_t            u64Tvutimestamp;
+
 }Lib_shm_extend_data_t, libshmmedia_extend_data_info_t;
 
 /**
@@ -207,6 +243,8 @@ int libShmReadExtendDataV2(libshmmedia_extend_data_info_t* pExtendData, const ui
 **/
 _LIBSHMMEDIA_PROTO_DLL_
 int LibShmMeidaParseExtendData(libshmmedia_extend_data_info_t* pExtendData, const uint8_t* pShmUserData, int dataSize, int userDataType);
+_LIBSHMMEDIA_PROTO_DLL_
+int LibShmMeidaParseExtendDataV2(libshmmedia_extend_data_info_t* pExtendData, const uint8_t* pShmUserData, int dataSize);
 
 
 /**

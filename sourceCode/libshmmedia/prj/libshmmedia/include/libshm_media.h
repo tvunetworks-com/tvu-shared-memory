@@ -25,6 +25,8 @@
 #include "libshmmedia_common.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <sys/types.h>
 
 __EXTERN_C_BEGIN
 
@@ -50,6 +52,34 @@ libshm_media_handle_t LibShmMediaCreate
     , uint32_t header_len
     , uint32_t item_count
     , uint32_t item_length
+);
+
+/**
+ *  Functionality:
+ *      used to create the share memory, or just open it if the share memory had existed.
+ *      Same as LibShmMediaCreate but allows specifying POSIX shared-memory permission bits.
+ *  Parameter:
+ *      @pMemoryName:
+ *          share memory entry name
+ *      @header_len:
+ *          the share memory head size, which would store the media head data.
+ *      @item_count:
+ *          how many counts of share memory item counts.
+ *      @item_length:
+ *          every item size.
+ *      @mode:
+ *          permission bits passed to shm_open (e.g. S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP).
+ *  Return:
+ *      NULL, open failed. Or return the share memory handle.
+ */
+_LIBSHMMEDIA_DLL_
+libshm_media_handle_t LibShmMediaCreate2
+(
+    const char * pMemoryName
+    , uint32_t header_len
+    , uint32_t item_count
+    , uint32_t item_length
+    , mode_t mode
 );
 
 /**
@@ -385,6 +415,28 @@ int LibShmMediaPollReadData(
 
 /**
  *  Functionality:
+ *      Poll to read out media data from share memory, and put read index step if success.
+ *  Parameter:
+ *      @pmh : destination head information structure.
+ *      @pmi : destination data information structure.
+ *      @pext : destination extension data information structure.
+ *      @timeout : milli-seconds unit, poll's timeout
+ *  Return:
+ *      0   -- means to wait & try again
+ *      <0  -- means failure
+ *      >0  -- means success
+ */
+_LIBSHMMEDIA_DLL_
+int LibShmMediaPollReadDataV2(
+    libshm_media_handle_t         h
+    , libshm_media_head_param_t   *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , unsigned int                timeout
+    );
+
+/**
+ *  Functionality:
  *      used to read out data, non-blocking mode, and put read index step if success.
  *  Parameter:
  *      it is special api of LibShmMediaPollReadData while timeout is 0, non-waiting.
@@ -399,6 +451,24 @@ int LibShmMediaReadData(
       , libshm_media_head_param_t   *pmh
       , libshm_media_item_param_t   *pmi
 );
+
+/**
+ *  Functionality:
+ *      used to read out data, non-blocking mode, and put read index step if success.
+ *  Parameter:
+ *      it is special api of LibShmMediaPollReadData2 while timeout is 0, non-waiting.
+ *  Return:
+ *      0   -- means to wait & try again
+ *      <0  -- means failure
+ *      >0  -- means success
+ */
+_LIBSHMMEDIA_DLL_
+int LibShmMediaReadDataV2(
+    libshm_media_handle_t         h
+    , libshm_media_head_param_t   *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    );
 
 
 /**
@@ -445,6 +515,108 @@ void LibShmMediaReadIndexStep(
  */
 _LIBSHMMEDIA_DLL_ 
 unsigned int LibShmMediaSetReadIndex(libshm_media_handle_t  h, char type, int64_t pts);
+
+/**
+ *  Functionality:
+ *      to search out the matching item to the tvutimestamp.
+ *  Parameter:
+ *      h[IN]       :   handle
+ *      tvutimestamp[IN]     :   tvutimestamp value from user setting.
+ *      pmi[OUT]    : the item point for storing the item data.
+ *  Return:
+ *      false: did not get the matching item
+ *      true:get the matching item, and the value would be saved to @pmi.
+ */
+_LIBSHMMEDIA_DLL_
+bool LibShmMediaSearchItemWithTvutimestamp(libshm_media_handle_t  h, uint64_t tvutimestamp, libshm_media_item_param_t *pmi);
+
+/**
+ *  Functionality:
+ *      to search out the matching item to the tvutimestamp.
+ *  Parameter:
+ *      h[IN]       :   handle
+ *      tvutimestamp[IN]     :   tvutimestamp value from user setting.
+ *      pmi[OUT]    : the item point for storing the item data.
+ *  Return:
+ *      false: did not get the matching item
+ *      true:get the matching item, and the value would be saved to @pmi.
+ */
+_LIBSHMMEDIA_DLL_
+bool LibShmMediaSearchItemWithTvutimestampV2(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    );
+
+/**
+ *  Functionality:
+ *      to read out the matching item to the tvutimestamp.
+ *  Parameter:
+ *      h[IN]       :   handle
+ *      tvutimestamp[IN]     :   tvutimestamp value from user setting.
+  *      type[IN]    :
+ *          'v' , according video pts to find
+ *          'a' , according audio pts to find
+ *          's' , according subtitle pts to find
+  *         'd' , according user data timestamp to find
+ *      pts [IN]    : the frame's pts.
+ *      bFoundTvutimestamp[OUT] : whether to find the item of matching the tvutimestamp
+ *      bFoundPts[OUT] : whether to find the item of matching the pts
+ *      pmh[OUT]    : the media head point for storing the item data.
+ *      pmi[OUT]    : the media item point for storing the item data.
+ *  Return:
+ *      0   -- means to wait & try again
+ *      <0  -- means failure
+ *      >0  -- means success
+ */
+_LIBSHMMEDIA_DLL_
+int LibShmMediaReadItemWithTvutimestamp(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , char type
+    , uint64_t pts
+    , bool *bFoundTvutimestamp
+    , bool *bFoundPts
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    );
+
+/**
+ *  Functionality:
+ *      to read out the matching item to the tvutimestamp.
+ *  Parameter:
+ *      h[IN]       :   handle
+ *      tvutimestamp[IN]     :   tvutimestamp value from user setting.
+  *      type[IN]    :
+ *          'v' , according video pts to find
+ *          'a' , according audio pts to find
+ *          's' , according subtitle pts to find
+  *         'd' , according user data timestamp to find
+ *      pts [IN]    : the frame's pts.
+ *      bFoundTvutimestamp[OUT] : whether to find the item of matching the tvutimestamp
+ *      bFoundPts[OUT] : whether to find the item of matching the pts
+ *      pmh[OUT]    : the media head point for storing the item head.
+ *      pmi[OUT]    : the media item point for storing the item data.
+ *      pext[OUT]   : the media structure for storing the extension data.
+ *  Return:
+ *      0   -- means to wait & try again
+ *      <0  -- means failure
+ *      >0  -- means success
+ */
+_LIBSHMMEDIA_DLL_
+int LibShmMediaReadItemWithTvutimestampV2(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , char type
+    , uint64_t pts
+    , bool *bFoundTvutimestamp
+    , bool *bFoundPts
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    );
 
 
 #if defined(TVU_LINUX)

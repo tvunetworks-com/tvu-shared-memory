@@ -28,7 +28,7 @@ CFLAGS+= -fPIC -I$(PRJ_PATH)/include \
 -I$(PRJ_PATH)/../libsharememory/include \
 -I$(PRJ_PATH)/../libsharememory/src/include \
 -I$(PRJ_PATH)/../libtvufourcc/include \
--I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include \
+-I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include -I$(DEP_LIBSHMUTIL_PATH)/src \
 
 
 LDFLAGS_EXE+=$(LDFLAGS) -Llib -L$(PRJ_PATH)/../libsharememory/lib -lshmmediawrap -L$(DEP_LIBSHMUTIL_PATH)/lib -lshmUtil

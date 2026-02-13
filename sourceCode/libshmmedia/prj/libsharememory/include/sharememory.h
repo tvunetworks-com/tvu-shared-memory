@@ -30,6 +30,10 @@
 #define SHM_FLAG_READ           1
 #define SHM_FLAG_WRITE          2
 
+#if defined(TVU_LINUX)
+#include <sys/types.h>
+#endif
+
 #if defined(TVU_WINDOWS)
 #include <Winsock2.h>
 #include <windows.h>
@@ -47,6 +51,9 @@ public:
     int InitCreateShm(uint32_t header_len, uint32_t item_count, uint32_t item_length);
     int InitOpenShm();
     uint8_t *CreateOrOpen(const char * pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length, void (*clean_data)(uint8_t *, bool) = NULL);
+#if defined(TVU_LINUX) && defined(USE_POSIX_SHM)
+    uint8_t *CreateOrOpen(const char * pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length, mode_t mode, void (*clean_data)(uint8_t *, bool) = NULL);
+#endif
     uint8_t *Open(const char * pMemoryName);
     int CloseMapFile();
     int CloseMapFileAndSleep();

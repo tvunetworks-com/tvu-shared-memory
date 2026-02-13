@@ -28,6 +28,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <inttypes.h>
 
@@ -118,6 +119,17 @@ int CTvuVariableItemRingShmCtx::CreateShmEntry(
     , const uint64_t total_size
 )
 {
+    return CreateShmEntry(pMemoryName, _header_len, item_count, total_size, S_IRUSR | S_IWUSR);
+}
+
+int CTvuVariableItemRingShmCtx::CreateShmEntry(
+    const char * pMemoryName
+    , const uint32_t _header_len
+    , const uint32_t item_count
+    , const uint64_t total_size
+    , mode_t mode
+)
+{
     CTvuVariableItemBaseShm    *pshm   = NULL;
     uint32_t        ver     = 0;
     uint64_t        shm_total_size   = 0;
@@ -154,7 +166,7 @@ int CTvuVariableItemRingShmCtx::CreateShmEntry(
     }
     header_len = _LISHMMEDIA_MEM_ALIGN(header_len, 16);/* multiple by 16 */
 
-    if (!pshm->CreateOrOpen(pMemoryName, header_len, item_count, shm_total_size))
+    if (!pshm->CreateOrOpen(pMemoryName, header_len, item_count, shm_total_size, mode))
     {
         DEBUG_ERROR("vi shm creating failed.name=>%s, head len=>%d, "
             "item count=>%d, total size=>%d\n"
@@ -1397,6 +1409,19 @@ LibViShmMediaCreate
     , uint64_t total_size
 )
 {
+    return LibViShmMediaCreate2(pMemoryName, header_len, item_count, total_size, S_IRUSR | S_IWUSR);
+}
+
+libshm_media_handle_t
+LibViShmMediaCreate2
+(
+    const char * pMemoryName
+    , uint32_t header_len
+    , uint32_t item_count
+    , uint64_t total_size
+    , mode_t mode
+)
+{
     CTvuVariableItemRingShmCtx             *pctx   = NULL;
     libshm_media_handle_t    h       = NULL;
 
@@ -1408,7 +1433,7 @@ LibViShmMediaCreate
         goto FAILED;
     }
 
-    if (pctx->CreateShmEntry(pMemoryName, header_len, item_count, total_size) < 0) {
+    if (pctx->CreateShmEntry(pMemoryName, header_len, item_count, total_size, mode) < 0) {
         goto FAILED;
     }
 

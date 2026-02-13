@@ -443,6 +443,11 @@ CTvuBaseShareMemory::~CTvuBaseShareMemory(void)
 
 uint8_t *CTvuBaseShareMemory::CreateOrOpen(const char *pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length, void (*clean_data)(uint8_t *, bool))
 {
+    return CreateOrOpen(pMemoryName, header_len, item_count, item_length, S_IRUSR | S_IWUSR, clean_data);
+}
+
+uint8_t *CTvuBaseShareMemory::CreateOrOpen(const char *pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length, mode_t mode, void (*clean_data)(uint8_t *, bool))
+{
     if (!m_pHeader)
     {
         size_t isize = 1LL * item_count * item_length + header_len;
@@ -479,7 +484,7 @@ uint8_t *CTvuBaseShareMemory::CreateOrOpen(const char *pMemoryName, uint32_t hea
             }
         }
 
-        int shm_id=shm_open(pMemoryName, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+        int shm_id=shm_open(pMemoryName, O_CREAT | O_RDWR, mode);
 
         if (shm_id == -1)
         {
@@ -498,7 +503,7 @@ uint8_t *CTvuBaseShareMemory::CreateOrOpen(const char *pMemoryName, uint32_t hea
             return NULL;
         }
 
-                
+
         m_iFlags = SHM_FLAG_WRITE; /* if shmat failed, make sure closing action go through removing share memory action */
         m_iShmId    = shm_id;
         m_iShmSize  = isize;
@@ -514,7 +519,7 @@ uint8_t *CTvuBaseShareMemory::CreateOrOpen(const char *pMemoryName, uint32_t hea
             shm_unlink(pMemoryName);
             return NULL;
         }
-        
+
         {
             if (InitCreateShm(header_len, item_count, item_length) < 0)
             {
@@ -1191,6 +1196,7 @@ int CTvuBaseShareMemory::_readable(bool bClosed)
                             , gap, count,r,w
                             );
                 r += count * (gap/count);
+                m_uReadIndex = r;
                 gap = w - r;
             }
 

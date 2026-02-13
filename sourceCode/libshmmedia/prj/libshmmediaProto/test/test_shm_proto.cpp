@@ -208,6 +208,234 @@ static int TestTrackChannelProto()
     return 0;
 }
 
+static int create_subtitle_private_protocol(uint8_t **ppSubtitle)
+{
+    int ret = 0;
+    LibShmmediaSubtitlePrivateProtocolEntries entry = {};
+    {
+        const int counts = 3;
+        entry.head.counts = counts;
+        for (int i = 0; i < counts; i++)
+        {
+            libshmmedia_subtitle_private_proto_entry_item_t &item = entry.entries[i];
+
+            if (i == 0)
+            {
+                item.strucSize = sizeof (libshmmedia_subtitle_private_proto_entry_item_t);
+                item.type = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_WEBVTT;
+                item.timestamp = 323412341;
+                item.duration = 2000;
+                item.dataLen = 4;
+                item.data = (const uint8_t *)"4444";
+            }
+            else if (i == 1)
+            {
+                item.strucSize = sizeof (libshmmedia_subtitle_private_proto_entry_item_t);
+                item.type = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_SRT;
+                item.timestamp = 666666;
+                item.duration = 2000;
+                item.dataLen = 5;
+                item.data = (const uint8_t *)"11111";
+            }
+            else if (i == 2)
+            {
+                item.strucSize = sizeof (libshmmedia_subtitle_private_proto_entry_item_t);
+                item.type = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_SUBRIP;
+                item.timestamp = 77777;
+                item.duration = 3000;
+                item.dataLen = 3;
+                item.data = (const uint8_t *)"22222";
+            }
+        }
+
+
+        int prelen = LibshmmediaSubtitlePrivateProtoPreEstimateBufferSize(&entry);
+        uint8_t *buffer = NULL;
+
+        if (prelen < 0)
+        {
+            return -1;
+        }
+
+        buffer = (uint8_t *)malloc(prelen);
+        if (!buffer)
+        {
+            return -1;
+        }
+
+        int len = LibshmmediaSubtitlePrivateProtoWriteBufferSize(&entry, buffer, prelen);
+
+        if (len>prelen)
+        {
+            return -1;
+        }
+
+        *ppSubtitle = buffer;
+        ret = len;
+    }
+
+    return ret;
+}
+
+static void print_ext_data(const libshmmedia_extend_data_info_t *p)
+{
+    char s1[16] = {"nil"};
+    char s2[16] = {"nil"};
+    char s3[16] = {"nil"};
+    char s4[16] = {"nil"};
+
+    if (p->bHasColorPrimariesVal_)
+    {
+        snprintf(s1, sizeof(s1), "%u", p->uColorPrimariesVal_);
+    }
+    if (p->bHasColorTransferCharacteristicVal_)
+    {
+        snprintf(s2, sizeof(s2), "%u", p->uColorTransferCharacteristicVal_);
+    }
+    if (p->bHasColorSpaceVal_)
+    {
+        snprintf(s3, sizeof(s3), "%u", p->uColorSpaceVal_);
+    }
+    if (p->bHasVideoFullRangeFlagVal_)
+    {
+        snprintf(s4, sizeof(s4), "%u", p->uVideoFullRangeFlagVal_);
+    }
+
+    printf(
+        "extension data info."
+        "uuid[%p, %d], cc608[%p, %d], captionText[%p, %d], "
+        "pp_stream[%p, %d], receiver_info[%p, %d], scte104[%p, %d],"
+        " scte35[%p, %d], timecodIndex[%p, %d], startTimecood[%p, %d], "
+        "hdr[%p, %d], fpsTimecode[%p, %d], pic_struct[%p, %d], "
+        "src_timestamp[%p, %d], timecode[%p, %d], metaPts[%p, %d]"
+        ",colorParamies:%s"
+        ",colorTransfer:%s"
+        ",colorSpace:%s"
+        ",videoFullRange:%s"
+        "\n"
+        , p->p_uuid_data
+        , p->i_uuid_length
+        , p->p_cc608_cdp_data
+        , p->i_cc608_cdp_length
+        , p->p_caption_text
+        , p->i_caption_text_length
+        , p->p_producer_stream_info
+        , p->i_producer_stream_info_length
+        , p->p_receiver_info
+        , p->i_receiver_info_length
+        , p->p_scte104_data
+        , p->i_scte104_data_len
+        , p->p_scte35_data
+        , p->i_scte35_data_len
+        , p->p_timecode_index
+        , p->i_timecode_index_length
+        , p->p_start_timecode
+        , p->i_start_timecode_length
+        , p->p_hdr_metadata
+        , p->i_hdr_metadata
+        , p->p_timecode_fps_index
+        , p->i_timecode_fps_index
+        , p->p_pic_struct
+        , p->i_pic_struct
+        , p->p_source_timestamp
+        , p->i_source_timestamp
+        , p->p_timecode
+        , p->i_timecode
+        , p->p_metaDataPts
+        , p->i_metaDataPts
+        , s1, s2, s3, s4
+    );
+}
+
+static void TestExtensionDataProto()
+{
+    int ret = 0;
+
+    libshmmedia_extend_data_info_t oe;
+    {
+        memset(&oe, 0, sizeof(oe));
+    }
+
+    uint8_t aExtBuff[1024] = {0};
+    uint8_t subtitle[1024] = {"webvtt"};
+    uint32_t iExtBuffSize = 0;
+    char uuid_str[37] = "1234567890abcdefghijklfmopqrstuvwxyz";
+    uint8_t cc608[73] = {0};
+    memset(cc608, '6', 72);
+
+    {
+        oe.i_uuid_length = 36;
+        oe.p_uuid_data =  (const uint8_t*)uuid_str;
+    }
+
+    {
+        oe.i_cc608_cdp_length = 72;
+        oe.p_cc608_cdp_data =  cc608;
+    }
+
+    {
+        oe.i_timecode = 4;
+        oe.p_timecode =  cc608;
+    }
+
+    uint8_t *buffer = NULL;
+    {
+        int bufflen = create_subtitle_private_protocol(&buffer);
+        oe.i_subtitle = bufflen;
+        oe.p_subtitle =  buffer;
+        oe.u_subtitle_type = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_PRIVATE_PROTOCOL_EXTENTION_STRUCTURE;
+    }
+
+    /* setting color primary */
+    {
+        oe.bHasColorPrimariesVal_ = true;
+        oe.uColorPrimariesVal_ = 1;
+    }
+
+    /* setting color transfer characteristic */
+    {
+        oe.bHasColorTransferCharacteristicVal_ = true;
+        oe.uColorTransferCharacteristicVal_ = 2;
+    }
+
+    /* setting color space */
+    {
+        oe.bHasColorSpaceVal_ = true;
+        oe.uColorSpaceVal_ = 3;
+    }
+
+    /* setting video full range flag */
+    {
+        oe.bHasVideoFullRangeFlagVal_ = false;
+        oe.uVideoFullRangeFlagVal_ = 1;
+    }
+
+    iExtBuffSize = LibShmMediaEstimateExtendDataSize(&oe);
+
+    assert(iExtBuffSize <= 1024);
+
+    int nw = LibShmMediaWriteExtendData(aExtBuff, iExtBuffSize, &oe);
+
+    if (buffer)
+    {
+        free(buffer);
+    }
+
+    if (nw <= 0)
+    {
+        return;
+    }
+
+    libshmmedia_extend_data_info_t oe1;
+    {
+        memset(&oe1, 0, sizeof(oe1));
+    }
+    LibShmMeidaParseExtendDataV2(&oe1, aExtBuff, nw);
+
+    print_ext_data(&oe1);
+    return;
+}
+
 static void TestBinConcatProto2(libshmmedia_bin_concat_proto_handle_t h)
 {
     char s1[50] = {0};
@@ -458,6 +686,12 @@ int main(int argc, char *argv[])
     printf("to begin with the test of bin-concat protocol\n");
     TestBinConcatProto();
     printf("to end with the test of bin-concat protocol\n");
+
+    printf("------------------------------------------------------------------------------\n");
+    printf("to begin with extension data protocol\n");
+    TestExtensionDataProto();
+    printf("to end with extension data protocol\n");
+
 
     return 0;
 }

@@ -14,6 +14,11 @@ DEF_MACROS=
 PRJ_OBJ=$(PRJ_PATH)/obj
 SUF_SRC=.cpp
 
+PLATFORM ?= linux64x
+ifeq ($(PLATFORM), linux64a)
+	CFLAGS += -I../../3rdparty/zlib/release/linux64a/include
+endif
+
 DEP_LIBSHMUTIL_PATH=$(PRJ_PATH)/../libshmUtil
 
 INCLUDS_PATHS+=-I$(PRJ_PATH)/include  -I$(PRJ_PATH)/../libsharememory/include -I$(PRJ_PATH)/../libsharememory/src/include -I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include

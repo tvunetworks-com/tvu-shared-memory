@@ -29,6 +29,7 @@
 #include "libshm_media_key_value_proto_internal.h"
 #include "libshm_time_internal.h"
 #include "TvuLog.h"
+#include "libshm_tvu_timestamp.h"
 
 #define NOT_EQUAL_DATA(d, s) ((s>0) && s!=d)
 
@@ -187,6 +188,11 @@ static int CheckShmStatus(CTvuBaseShareMemory  *psh, uint32_t  *ver)
 
 int CLibShmMediaCtx::CreateShmEntry(const char * pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length)
 {
+    return CreateShmEntry(pMemoryName, header_len, item_count, item_length, S_IRUSR | S_IWUSR);
+}
+
+int CLibShmMediaCtx::CreateShmEntry(const char * pMemoryName, uint32_t header_len, uint32_t item_count, uint32_t item_length, mode_t mode)
+{
     CTvuBaseShareMemory    *pshm   = NULL;
     uint32_t        ver     = 0;
     uint32_t        item_total_length   = 0;
@@ -230,7 +236,7 @@ int CLibShmMediaCtx::CreateShmEntry(const char * pMemoryName, uint32_t header_le
     }
     header_len = _LISHMMEDIA_MEM_ALIGN(header_len, 16);//make sure multiple by 16
 
-    if (!pshm->CreateOrOpen(pMemoryName, header_len, item_count, item_total_length, &libshmmediapro::setCloseFlag))
+    if (!pshm->CreateOrOpen(pMemoryName, header_len, item_count, item_total_length, mode, &libshmmediapro::setCloseFlag))
     {
         DEBUG_ERROR("sharemeory[name=>%s, head len=>%d, "
             "item count=>%d, item len=>%d] create failed\n"
@@ -240,11 +246,11 @@ int CLibShmMediaCtx::CreateShmEntry(const char * pMemoryName, uint32_t header_le
 
     if (desire_major_v != pshm->GetShmVersion())
     {
-        /** 
-         *  desired major version should match real shm version, 
+        /**
+         *  desired major version should match real shm version,
          *  or should close this share memory.
          *  If server just force the desired major version to shm
-         *  client would perhaps also use the old major version, 
+         *  client would perhaps also use the old major version,
          *  so keeping the old major version was better method.
          *
          */
@@ -282,7 +288,7 @@ int CLibShmMediaCtx::CreateShmEntry(const char * pMemoryName, uint32_t header_le
 
 FAILED:
 
-    if (pshm) 
+    if (pshm)
     {
         libshmmediapro::setCloseFlag(pshm->GetHeader(), true);
         delete pshm;
@@ -323,6 +329,7 @@ int CLibShmMediaCtx::OpenShmEntry(const char * pMemoryName, libshm_media_readcb_
     m_pShmObj       = pshm;
     m_fnReadCb      = cb;
     m_pOpaq         = opaq;
+
     return  0;
 FAILED:
     if (pshm) {
@@ -1397,7 +1404,11 @@ int CLibShmMediaCtx::PollReadHead(libshm_media_head_param_t *pmh, unsigned int t
     return ret;
 }
 
-int CLibShmMediaCtx::PollReadDataWithoutIndexStep(libshm_media_head_param_t *pmh, libshm_media_item_param_t   *pmi, unsigned int timeout)
+int CLibShmMediaCtx::PollReadDataWithoutIndexStep(
+    libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , unsigned int timeout)
 {
     uint32_t    read_index  = m_pShmObj->GetReadIndex();
     int         ret     = PollReadable(timeout);
@@ -1406,7 +1417,7 @@ int CLibShmMediaCtx::PollReadDataWithoutIndexStep(libshm_media_head_param_t *pmh
         return ret;
     }
 
-    ret = ReadItemData(pmh, pmi, read_index);
+    ret = ReadItemData(pmh, pmi, pext, read_index);
 
     if (ret < 0)
     {
@@ -1417,7 +1428,112 @@ int CLibShmMediaCtx::PollReadDataWithoutIndexStep(libshm_media_head_param_t *pmh
     return ret;
 }
 
-int CLibShmMediaCtx::ReadItemData(libshm_media_head_param_t *pmh, libshm_media_item_param_t   *pmi, unsigned int rindex)
+int CLibShmMediaCtx::PollReadDateWithTvutimestamp(
+    libshm_media_head_param_t *pmh, libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , bool *bFoundTvutimestamp
+    , bool *bFoundPts
+    , uint64_t tvutimestamp
+    , char type, uint64_t pts
+    )
+{
+    if (!pmh || !pmi || !bFoundTvutimestamp || !bFoundPts)
+    {
+        return -1;
+    }
+
+    int ret     = PollReadable(0);
+
+    if (ret <= 0) {
+        return ret;
+    }
+
+    ResultRecorder firstItem;
+    ResultRecorder matchintItem;
+    bool bGotMatchingItem = SearchTheFirstMatchingItemWithTvutimestamp(tvutimestamp, matchintItem);
+    *bFoundTvutimestamp = bGotMatchingItem;
+
+    if (bGotMatchingItem)
+    {
+        DEBUG_INFO_CR(
+            "It found the item data matching tvutimestamp."
+            "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+            , GetName()
+            , matchintItem.itemIdx
+            , tvutimestamp
+            , matchintItem.GetItem().GetTvutimestamp()
+            , LibshmutilTvutimestampMinusWithMS(matchintItem.GetItem().GetTvutimestamp(), tvutimestamp)
+            );
+        ret = matchintItem.GetItem().GetReadingRet();
+        *pmh = matchintItem.GetItem().curHead_;
+        *pmi = matchintItem.GetItem().curItem_;
+        if (pext)
+        {
+            *pext  = matchintItem.GetItem().curExt_;
+        }
+        SetRIndex(matchintItem.itemIdx+1);
+        return ret;
+    }
+
+    bGotMatchingItem = SearchTheFirstMatchingItemWithPts(pts, matchintItem);
+    *bFoundPts = bGotMatchingItem;
+    if (bGotMatchingItem)
+    {
+        DEBUG_INFO_CR(
+            "It found the item data matching pts."
+            "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+            , GetName()
+            , matchintItem.itemIdx
+            , pts
+            , matchintItem.GetItem().GetPts()
+            , (matchintItem.GetItem().GetPts() - pts)
+            );
+        ret = matchintItem.GetItem().GetReadingRet();
+        *pmh = matchintItem.GetItem().curHead_;
+        *pmi = matchintItem.GetItem().curItem_;
+        if (pext)
+        {
+            *pext  = matchintItem.GetItem().curExt_;
+        }
+        SetRIndex(matchintItem.itemIdx+1);
+        return ret;
+    }
+
+    //if (!bGotMatchingItem)
+    {
+        ret = _readOutFirstItemInfor(firstItem);
+        if (ret <= 0)
+        {
+            DEBUG_ERROR_CR("It was impossible that it did not get the first item data here."
+                "ret:%d"
+                , ret
+            );
+            return ret;
+        }
+
+        DEBUG_WARN_CR("It did not find matching item data, just responsed the first item."
+            "ret:%d"
+            ",idx:%u"
+            , ret
+            , firstItem.itemIdx
+        );
+        *pmh = firstItem.GetItem().curHead_;
+        *pmi = firstItem.GetItem().curItem_;
+        if (pext)
+        {
+            *pext  = firstItem.GetItem().curExt_;
+        }
+        SetRIndex(firstItem.itemIdx+1);
+    }
+
+    return ret;
+}
+
+int CLibShmMediaCtx::ReadItemData(
+    libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , unsigned int rindex)
 {
     uint32_t    read_index  = rindex;
     uint8_t     *pItemAddr  = m_pShmObj->GetItemAddrByIndex(read_index);
@@ -1468,6 +1584,37 @@ int CLibShmMediaCtx::ReadItemData(libshm_media_head_param_t *pmh, libshm_media_i
                 DEBUG_ERROR("read callback return %d invalid", ret);
             }
         }
+
+        if (pext)
+        {
+            if (oipv.i_userDataLen > 0 && oipv.p_userData)
+            {
+                LibShmMeidaParseExtendDataV2(pext, oipv.p_userData, oipv.i_userDataLen);
+            }
+
+        }
+    }
+
+    return r_len;
+}
+
+int CLibShmMediaCtx::ReadItemData2(
+    unsigned int rindex
+    , libshm_media_head_param_t &mh
+    , libshm_media_item_param_t &mi
+    , libshmmedia_extend_data_info_t &ext)
+{
+    uint32_t    read_index  = rindex;
+    uint8_t     *pItemAddr  = m_pShmObj->GetItemAddrByIndex(read_index);
+    int         r_len       = -1;
+
+    unsigned int buffer_len = libshmmediapro::getBufferLenFromItemBuffer(pItemAddr, m_uVersion);
+
+    r_len = libshmmediapro::readDataFromItemBuffer(&mh, &mi, pItemAddr, buffer_len);
+
+    if (r_len > 0 && mi.i_userDataLen > 0 && mi.p_userData)
+    {
+        LibShmMeidaParseExtendDataV2(&ext, mi.p_userData, mi.i_userDataLen);
     }
 
     return r_len;
@@ -1821,9 +1968,13 @@ int CLibShmMediaCtx::FinishRead()
     return 0;
 }
 
-int CLibShmMediaCtx::PollReadData(libshm_media_head_param_t *pmh, libshm_media_item_param_t   *pmi, unsigned int timeout)
+int CLibShmMediaCtx::PollReadData(
+    libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , unsigned int timeout)
 {
-    int ret = PollReadDataWithoutIndexStep(pmh, pmi, timeout);
+    int ret = PollReadDataWithoutIndexStep(pmh, pmi, pext, timeout);
 
     if (ret > 0)
     {
@@ -1843,7 +1994,7 @@ uint32_t CLibShmMediaCtx::SetReadIndex(char type, int64_t pts)
     {
         libshm_media_head_param_t   oh  = {0};
         libshm_media_item_param_t   opv  = {0};
-        int ret = ReadItemData(&oh, &opv, rindex);
+        int ret = ReadItemData(&oh, &opv, NULL, rindex);
         int64_t c_pts   = 0;
 
         if (ret <= 0) {
@@ -1853,21 +2004,7 @@ uint32_t CLibShmMediaCtx::SetReadIndex(char type, int64_t pts)
 
         libshm_media_item_param_t &op = opv;
 
-        switch (type)
-        {
-        case 'v':
-            c_pts   = op.i64_vpts;
-            break;
-        case 'a':
-            c_pts   = op.i64_apts;
-            break;
-        case 's':
-            c_pts   = op.i64_spts;
-            break;
-        default:
-            c_pts   = -1;
-            break;
-        }
+        c_pts = LibShmMediaItemParamGetPts(&op, type);
 
         if (c_pts <= 0) {
             rindex  = windex;
@@ -1882,6 +2019,913 @@ uint32_t CLibShmMediaCtx::SetReadIndex(char type, int64_t pts)
 
     SetRIndex(rindex);
     return rindex;
+}
+
+static bool isSameSign(int a, int b) {
+    return (a ^ b) >= 0;
+}
+
+int CLibShmMediaCtx::_readOutItemInfor(
+    uint32_t rindex
+    ,libshm_media_head_param_t &oh
+    ,libshm_media_item_param_t &op
+    ,libshmmedia_extend_data_info_t &ext
+    ,bool &gotTvutimestamp
+    ,uint64_t &tvutimestamp
+    )
+{
+    gotTvutimestamp = false;
+    const int ret = ReadItemData2(rindex, oh, op, ext);
+    if (ret <= 0)
+    {
+        DEBUG_ERROR_CR(
+            "It can not get the item data."
+            "nm:%s,inx:%u"
+            , GetName()
+            , rindex
+            );
+        return ret;
+    }
+
+    if (!ext.i_timecode_fps_index
+     || !ext.p_timecode_fps_index
+     || (ext.i_timecode_fps_index != sizeof(uint64_t))
+     )
+    {
+        DEBUG_WARN_CR(
+            "the shm did not have tvutimestamp."
+            "nm:%s,inx:%u"
+            , GetName()
+            , rindex
+            );
+        return ret;
+    }
+
+    uint64_t fpsTimecode = LIBSHMMEDIA_ITEM_READ_SHM_U64(*(uint64_t*)ext.p_timecode_fps_index);
+    if (!LibshmutilTvutimestampValid(fpsTimecode))
+    {
+        DEBUG_WARN_CR(
+            "the shm did not get the valid tvutimestamp."
+            "nm:%s,inx:%u,tm:0x%" PRIx64 ""
+            , GetName()
+            , rindex
+            , fpsTimecode
+            );
+        return ret;
+    }
+
+    gotTvutimestamp = true;
+    tvutimestamp = fpsTimecode;
+    return ret;
+}
+
+const tvushm::ItemInfo&
+CLibShmMediaCtx::_readOutItemInfor(uint32_t rindex)
+{
+    uint32_t counts = GetItemCounts();
+    uint32_t itemIdx = rindex % counts;
+
+    if (_itemNodes.capacity() <counts)
+    {
+        _itemNodes.resize(counts);
+    }
+
+    tvushm::ItemInfo &item = _itemNodes[itemIdx];
+
+    if (item.IsReadingSuccess(rindex))
+    {
+        return item;
+    }
+
+    item.Init();
+
+    libshm_media_head_param_t &oh = item.curHead_;
+    libshm_media_item_param_t &op = item.curItem_;
+    libshmmedia_extend_data_info_t &ext = item.curExt_;
+
+    const int ret = ReadItemData2(rindex, oh, op, ext);
+    item.readRet_ = ret;
+    item.itemIdex_ = rindex;
+
+    if (ret <= 0)
+    {
+        DEBUG_ERROR_CR(
+            "It can not get the item data."
+            "nm:%s,inx:%u"
+            , GetName()
+            , rindex
+            );
+        return item;
+    }
+
+    item.pts_ = LibShmMediaItemParamGetPts(&op, 0);
+
+    if (!ext.bGotTvutimestamp)
+    {
+        DEBUG_WARN_CR(
+            "the shm did not have tvutimestamp."
+            "nm:%s,inx:%u"
+            , GetName()
+            , rindex
+            );
+        return item;
+    }
+
+    item.bGotTvutimestamp_ = ext.bGotTvutimestamp;
+    item.tvutimestamp_ = ext.u64Tvutimestamp;
+    return item;
+}
+
+int CLibShmMediaCtx::_readOutItemInfor(uint32_t rindex, ResultRecorder &rec)
+{
+    const tvushm::ItemInfo &item = _readOutItemInfor(rindex);
+    const int ret = item.GetReadingRet();
+    rec.itemIdx = rindex;
+    rec.pItem = &item;
+    return ret;
+}
+
+int CLibShmMediaCtx::_readOutFirstItemInfor(ResultRecorder &rec)
+{
+    uint32_t rindex = GetRIndex();
+    return _readOutItemInfor(rindex, rec);
+}
+
+/**
+ * return the reading status.
+ **/
+int CLibShmMediaCtx::_cmpMatchingTvutimestamp(
+    uint32_t rindex
+    , const uint64_t &tvutimestamp
+    , ResultRecorder &rec
+    )
+{
+    const int ret = _readOutItemInfor(rindex, rec);
+    const tvushm::ItemInfo &item = *(rec.pItem);
+
+    if (!item.IsReadingSuccess(rindex))
+    {
+        return ret;
+    }
+
+    if (item.HasGottenTvutimestamp(rindex))
+    {
+        rec.cmpRet = LibshmutilTvutimestampCompare(item.GetTvutimestamp(), tvutimestamp);
+    }
+
+    return ret;
+}
+
+static int _cmpUint64(uint64_t v1, uint64_t v2)
+{
+    int64_t d = v1 - v2;
+    if (d > 0)
+    {
+        return 1;
+    }
+    else if (d < 0)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+int CLibShmMediaCtx::_cmpMatchingPts(
+    uint32_t rindex
+    , const uint64_t &pts
+    , ResultRecorder &rec
+    )
+{
+    const int ret = _readOutItemInfor(rindex, rec);
+    const tvushm::ItemInfo &item = *(rec.pItem);
+
+    if (!item.IsReadingSuccess(rindex))
+    {
+        return ret;
+    }
+
+    if (item.HasGottenPts(rindex))
+    {
+        rec.cmpRet = _cmpUint64(item.GetPts(), pts);
+    }
+
+    return ret;
+}
+
+bool CLibShmMediaCtx::SearchItemWithTvutimestamp(
+    const uint64_t &tvutimestamp
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    )
+{
+    uint32_t    windex  = GetWIndex();
+    //uint32_t    counts  = GetItemCounts();
+    uint32_t    rindex  = GetRIndex();//windex >= counts ? (windex - counts + 1) : 0;
+    int32_t     gapCnt  = windex - rindex;
+
+    if (!LibshmutilTvutimestampValid(tvutimestamp))
+    {
+        DEBUG_WARN_CR(
+            "invalid tvutimestamp input."
+            "nm:%s,tm:0x%" PRIx64 ""
+            , GetName()
+            , tvutimestamp
+            );
+        return false;
+    }
+
+    if (gapCnt <= 0)
+    {
+        return false;
+    }
+
+    bool bGotMatching = false;
+    uint32_t matchingIdx = 0;
+    uint64_t matchingTvustamp = 0;
+
+    int64_t beginTime = _libshm_get_sys_ms64();
+
+    do {
+        uint32_t startInx = rindex;
+        uint32_t endInx = windex - 1;
+
+        // in the rage
+        uint32_t left = startInx;
+        uint32_t right = endInx ;
+
+        while ((int32_t)(left - right) <= 0) {
+            uint32_t mid = left + (right - left) / 2;
+            ResultRecorder result;
+            _cmpMatchingTvutimestamp(mid, tvutimestamp, result);
+            const tvushm::ItemInfo &item = *(result.pItem);
+            if (!item.IsReadingSuccess(mid))
+            {
+                DEBUG_ERROR_CR(
+                    "It can not open the item data for searching tvutimestamp."
+                    "nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+                    , GetName()
+                    , mid
+                    , tvutimestamp
+                    );
+                break;
+            }
+
+            if (!item.HasGottenTvutimestamp(mid))
+            {
+                DEBUG_WARN_CR(
+                    "It did not get the tvutimestamp from the item data for searching tvutimestamp."
+                    "nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+                    , GetName()
+                    , mid
+                    , tvutimestamp
+                    );
+                break;
+            }
+
+            if (result.cmpRet == 0) {
+                matchingTvustamp = item.GetTvutimestamp();
+                matchingIdx = mid;
+                if (pmh)
+                    *pmh = result.GetItem().curHead_;
+                if (pmi)
+                    *pmi = result.GetItem().curItem_;
+                if (pext)
+                    *pext = result.GetItem().curExt_;
+                bGotMatching = true;
+                break;
+            } else if (result.cmpRet < 0) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+    } while(0);
+
+    int64_t diffTime = _libshm_get_sys_ms64() - beginTime;
+    if (bGotMatching)
+    {
+        if (diffTime <= 5)
+        {
+            DEBUG_INFO_CR(
+                "It found the item data for searching tvutimestamp."
+                "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+                ",tm:%" PRId64 ""
+                , GetName()
+                , matchingIdx
+                , tvutimestamp
+                , matchingTvustamp
+                , LibshmutilTvutimestampMinusWithMS(matchingTvustamp, tvutimestamp)
+                , diffTime
+            );
+        }
+        else
+        {
+            DEBUG_WARN_CR(
+                "It found the item data for searching tvutimestamp."
+                "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+                ",tm:%" PRId64 ""
+                , GetName()
+                , matchingIdx
+                , tvutimestamp
+                , matchingTvustamp
+                , LibshmutilTvutimestampMinusWithMS(matchingTvustamp, tvutimestamp)
+                , diffTime
+            );
+        }
+    }
+    else
+    {
+        DEBUG_WARN_CR(
+            "It did not find the item data for searching tvutimestamp."
+            "nm:%s,expect:0x%" PRIx64 ""
+            ",tm:%" PRId64 ""
+            , GetName()
+            , tvutimestamp
+            , diffTime
+        );
+    }
+
+    return bGotMatching;
+}
+
+// template <typename TimeValidFun, typename cmpFun
+//          , typename GetTimeVal_t
+//          , typename HasGotTimeVal_t
+//          >
+// bool CLibShmMediaCtx::TemplateSearchFirstItemMatching(
+//     const uint64_t &tvutimestamp, ResultRecorder &matchingItem
+//     , TimeValidFun fnTimeValid, cmpFun fnCmp
+//     , GetTimeVal_t fnGetTime
+//     , HasGotTimeVal_t fnHasGotTime
+//     )
+bool CLibShmMediaCtx::SearchFirstItemMatching(
+    const uint64_t &tvutimestamp
+    , ResultRecorder &matchingItem, FnTimestampValid_t fnTimeValid, FnCmpFetchingItem_t fnCmp
+    , FnGetItemTimeVal_t fnGetTime
+    , FnHasGottenTimeVal_t fnHasGotTime
+    , FnTimestampValMinus_t fnMinus
+    , const char *module
+)
+{
+    uint32_t    windex  = GetWIndex();
+    //uint32_t    counts  = GetItemCounts();
+    uint32_t    rindex  = GetRIndex();//windex >= counts ? (windex - counts + 1) : 0;
+    int32_t     gapCnt  = windex - rindex;
+
+    if (gapCnt <= 0)
+    {
+        DEBUG_WARN_CR(
+            "no items were ready for reading."
+            "at:%s,nm:%s,tm:0x%" PRIx64 ""
+            , module
+            , GetName()
+            , tvutimestamp
+            );
+        return false;
+    }
+
+    if (!fnTimeValid(tvutimestamp))
+    {
+        DEBUG_WARN_CR(
+            "invalid tvutimestamp input."
+            "at:%s,nm:%s,tm:0x%" PRIx64 ""
+            , module
+            , GetName()
+            , tvutimestamp
+            );
+        return false;
+    }
+
+    bool bGotMatching = false;
+    uint64_t matchingTvustamp = 0;
+    uint64_t minTvustamp = 0;
+    uint64_t maxTvustamp = 0;
+
+    int64_t beginTime = _libshm_get_sys_ms64();
+
+    do {
+        uint32_t startInx = rindex;
+        uint32_t endInx = windex - 1;
+
+        ResultRecorder lastResult;
+        {
+            fnCmp(startInx, tvutimestamp, lastResult);
+            const tvushm::ItemInfo &item = *(lastResult.pItem);
+            if (!fnHasGotTime(&item, startInx))
+            {
+                break;
+            }
+
+            uint64_t t0 = fnGetTime(&item);
+            minTvustamp = t0;
+            if (lastResult.cmpRet == 0) /* found */
+            {
+                matchingTvustamp = t0;
+                matchingItem = lastResult;
+                bGotMatching = true;
+                break;
+            }
+            else if (lastResult.cmpRet > 0) /* out of range */
+            {
+                DEBUG_WARN_CR(
+                    "the 1st item tvutimestamp was larger than request."
+                    "at:%s, nm:%s,idx:%u,v1:0x%" PRIx64 ",v2:0x%" PRIx64 ",-:%" PRId64 "ms"
+                    , module
+                    , GetName()
+                    , startInx
+                    , tvutimestamp
+                    , t0
+                    , fnMinus(t0, tvutimestamp)
+                    );
+                break;
+            }
+        }
+
+        if (endInx == startInx) /* only one item */
+        {
+            break;
+        }
+
+        if ((int)(endInx - startInx) < 0)
+        {
+            DEBUG_ERROR_CR(
+                "It was impossible that end index is less than start index."
+                "at:%s,nm:%s,eidx:%u,sidx:%u"
+                , module
+                , GetName()
+                , endInx
+                , startInx
+                );
+            break;
+        }
+
+        ResultRecorder lastResult2;
+        //if (endInx != startInx)
+        {
+            fnCmp(endInx, tvutimestamp, lastResult2);
+            const tvushm::ItemInfo &item = *(lastResult2.pItem);
+            if (!fnHasGotTime(&item,endInx))
+            {
+                break;
+            }
+
+            uint64_t t0 = fnGetTime(&item);
+            maxTvustamp = t0;
+            if (lastResult2.cmpRet == 0) /* found */
+            {
+                matchingTvustamp = t0;
+                matchingItem = lastResult2;
+                bGotMatching = true;
+                break;
+            }
+            else if (lastResult2.cmpRet < 0) /* out of range */
+            {
+                DEBUG_WARN_CR(
+                    "the last item tvutimestamp was smaller than request."
+                    "at:%s,nm:%s,idx:%u,v1:0x%" PRIx64 ",v2:0x%" PRIx64 ",-:%" PRId64 "ms"
+                    , module
+                    , GetName()
+                    , endInx
+                    , tvutimestamp
+                    , t0
+                    , fnMinus(t0, tvutimestamp)
+                    );
+                break;
+            }
+        }
+
+        if (endInx - startInx <= 1)
+        {
+            matchingTvustamp = fnGetTime(lastResult2.pItem);
+            matchingItem = lastResult2;
+            bGotMatching = true;
+            break;
+        }
+
+        // in the rage
+        uint32_t left = startInx;
+        uint32_t right = endInx ;
+
+        while ((int32_t)(left - right) <= 0) {
+            uint32_t mid = left + (right - left) / 2;
+            ResultRecorder result;
+            if (mid == startInx)
+            {
+                result = lastResult;
+            }
+            else if (mid == endInx)
+            {
+                result = lastResult2;
+            }
+            else
+            {
+                fnCmp(mid, tvutimestamp, result);
+            }
+
+            const tvushm::ItemInfo &item = *(result.pItem);
+            if (!item.IsReadingSuccess(mid))
+            {
+                DEBUG_ERROR_CR(
+                    "It can not open the item data for searching tvutimestamp."
+                    "at:%s,nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+                    , module
+                    , GetName()
+                    , mid
+                    , tvutimestamp
+                    );
+                break;
+            }
+
+            if (!fnHasGotTime(&item,mid))
+            {
+                DEBUG_WARN_CR(
+                    "It did not get the tvutimestamp from the item data for searching tvutimestamp."
+                    "at:%s,nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+                    , module
+                    , GetName()
+                    , mid
+                    , tvutimestamp
+                    );
+                break;
+            }
+
+            if (result.cmpRet == 0) {
+                matchingTvustamp = fnGetTime(&item);
+                matchingItem = result;
+                bGotMatching = true;
+                break;
+            } else if (result.cmpRet < 0) {
+                left = mid + 1;
+            } else {
+                matchingTvustamp = fnGetTime(&item);
+                matchingItem = result;
+                bGotMatching = true;
+                right = mid - 1;
+            }
+        }
+
+        if (!bGotMatching)
+        {
+            DEBUG_ERROR_CR(
+                "It was impossible that did not get matching item here."
+                "at:%s,nm:%s,expect:0x%" PRIx64 ",min:0x%" PRIx64 ",max:0x%" PRIx64 ",-:%" PRId64 "ms"
+                , module
+                , GetName()
+                , tvutimestamp
+                , minTvustamp
+                , maxTvustamp
+                , fnMinus(maxTvustamp, minTvustamp)
+                );
+        }
+    } while(0);
+
+    int64_t diffTime = _libshm_get_sys_ms64() - beginTime;
+    if (bGotMatching)
+    {
+        if (diffTime <= 5)
+        {
+            DEBUG_INFO_CR(
+                "It found the item data for searching timestamp."
+                "at:%s,nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+                ",tm:%" PRId64 ""
+                , module
+                , GetName()
+                , matchingItem.itemIdx
+                , tvutimestamp
+                , matchingTvustamp
+                , fnMinus(matchingTvustamp, tvutimestamp)
+                , diffTime
+                );
+        }
+        else
+        {
+            DEBUG_WARN_CR(
+                "It found the item data for searching timestamp."
+                "at:%s,nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+                ",tm:%" PRId64 ""
+                , module
+                , GetName()
+                , matchingItem.itemIdx
+                , tvutimestamp
+                , matchingTvustamp
+                , fnMinus(matchingTvustamp, tvutimestamp)
+                , diffTime
+                );
+        }
+    }
+    else
+    {
+        DEBUG_WARN_CR(
+            "It did not find the item data for searching tvutimestamp."
+            "at:%s,nm:%s,expect:0x%" PRIx64 ",min:0x%" PRIx64 ", max:0x%" PRIx64 ""
+            ",tm:%" PRId64 ""
+            , module
+            , GetName()
+            , tvutimestamp
+            , minTvustamp, maxTvustamp
+            , diffTime
+            );
+    }
+
+    return bGotMatching;
+}
+
+bool CLibShmMediaCtx::SearchTheFirstMatchingItemWithTvutimestamp(
+    const uint64_t &tvutimestamp
+    , ResultRecorder &matchingItem
+    )
+{
+    FnTimestampValid_t fnPtsValid =
+        std::bind(LibshmutilTvutimestampValid, std::placeholders::_1);
+    FnCmpFetchingItem_t fnCmp =
+        std::bind(&CLibShmMediaCtx::_cmpMatchingTvutimestamp, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    FnGetItemTimeVal_t fnGetTime =
+        std::bind(&tvushm::ItemInfo::GetTvutimestamp, std::placeholders::_1);
+    FnHasGottenTimeVal_t fnGottenTime =
+        std::bind(&tvushm::ItemInfo::HasGottenTvutimestamp, std::placeholders::_1, std::placeholders::_2);
+    FnTimestampValMinus_t fnMinus = std::bind(&LibshmutilTvutimestampMinusWithMS, std::placeholders::_1, std::placeholders::_2);
+    return SearchFirstItemMatching(tvutimestamp, matchingItem, fnPtsValid, fnCmp, fnGetTime, fnGottenTime, fnMinus, "tvutimestamp");
+    // uint32_t    windex  = GetWIndex();
+    // //uint32_t    counts  = GetItemCounts();
+    // uint32_t    rindex  = GetRIndex();//windex >= counts ? (windex - counts + 1) : 0;
+    // int32_t     gapCnt  = windex - rindex;
+    // int         ret = 0;
+
+    // if (gapCnt <= 0)
+    // {
+    //    DEBUG_WARN_CR(
+    //         "no items were ready for reading."
+    //         "nm:%s,tm:0x%" PRIx64 ""
+    //         , GetName()
+    //         , tvutimestamp
+    //         );
+    //     return false;
+    // }
+
+    // if (!LibshmutilTvutimestampValid(tvutimestamp))
+    // {
+    //     DEBUG_WARN_CR(
+    //         "invalid tvutimestamp input."
+    //         "nm:%s,tm:0x%" PRIx64 ""
+    //         , GetName()
+    //         , tvutimestamp
+    //         );
+    //     return false;
+    // }
+
+    // bool bGotMatching = false;
+    // uint64_t matchingTvustamp = 0;
+    // uint64_t minTvustamp = 0;
+    // uint64_t maxTvustamp = 0;
+
+    // int64_t beginTime = _libshm_get_sys_ms64();
+
+    // do {
+    //     uint32_t startInx = rindex;
+    //     uint32_t endInx = windex - 1;
+
+    //     ResultRecorder lastResult;
+    //     {
+    //         _cmpMatchingTvutimestamp(startInx, tvutimestamp, lastResult);
+    //         const tvushm::ItemInfo &item = *(lastResult.pItem);
+    //         if (!item.HasGottenTvutimestamp(startInx))
+    //         {
+    //             break;
+    //         }
+
+    //         uint64_t t0 = item.GetTvutimestamp();
+    //         minTvustamp = t0;
+    //         if (lastResult.cmpRet == 0) /* found */
+    //         {
+    //             matchingTvustamp = t0;
+    //             matchingItem = lastResult;
+    //             bGotMatching = true;
+    //             break;
+    //         }
+    //         else if (lastResult.cmpRet > 0) /* out of range */
+    //         {
+    //             DEBUG_WARN_CR(
+    //                 "the 1st item tvutimestamp was larger than request."
+    //                 "nm:%s,idx:%u,v1:0x%" PRIx64 ",v2:0x%" PRIx64 ",-:%" PRId64 "ms"
+    //                 , GetName()
+    //                 , startInx
+    //                 , tvutimestamp
+    //                 , t0
+    //                 , LibshmutilTvutimestampMinusWithMS(t0, tvutimestamp)
+    //                 );
+    //             break;
+    //         }
+    //     }
+
+    //     if (endInx == startInx) /* only one item */
+    //     {
+    //         break;
+    //     }
+        
+    //     if ((int)(endInx - startInx) < 0)
+    //     {
+    //         DEBUG_ERROR_CR(
+    //             "It was impossible that end index is less than start index."
+    //             "nm:%s,eidx:%u,sidx:%u"
+    //             , GetName()
+    //             , endInx
+    //             , startInx
+    //             );
+    //         break;
+    //     }
+
+    //     ResultRecorder lastResult2;
+    //     //if (endInx != startInx)
+    //     {
+    //         _cmpMatchingTvutimestamp(endInx, tvutimestamp, lastResult2);
+    //         const tvushm::ItemInfo &item = *(lastResult2.pItem);
+    //         if (!item.HasGottenTvutimestamp(endInx))
+    //         {
+    //             break;
+    //         }
+
+    //         maxTvustamp = item.GetTvutimestamp();
+    //         if (lastResult2.cmpRet == 0) /* found */
+    //         {
+    //             matchingTvustamp = item.GetTvutimestamp();
+    //             matchingItem = lastResult2;
+    //             bGotMatching = true;
+    //             break;
+    //         }
+    //         else if (lastResult2.cmpRet < 0) /* out of range */
+    //         {
+    //             DEBUG_WARN_CR(
+    //                 "the last item tvutimestamp was smaller than request."
+    //                 "nm:%s,idx:%u,v1:0x%" PRIx64 ",v2:0x%" PRIx64 ",-:%" PRId64 "ms"
+    //                 , GetName()
+    //                 , endInx
+    //                 , tvutimestamp
+    //                 , item.GetTvutimestamp()
+    //                 , LibshmutilTvutimestampMinusWithMS(item.GetTvutimestamp(), tvutimestamp)
+    //                 );
+    //             break;
+    //         }
+    //     }
+
+    //     if (endInx - startInx <= 1)
+    //     {
+    //         matchingTvustamp = lastResult2.pItem->GetTvutimestamp();
+    //         matchingItem = lastResult2;
+    //         bGotMatching = true;
+    //         break;
+    //     }
+
+    //     // in the rage
+    //     uint32_t left = startInx;
+    //     uint32_t right = endInx ;
+
+    //     while ((int32_t)(left - right) <= 0) {
+    //         uint32_t mid = left + (right - left) / 2;
+    //         ResultRecorder result;
+    //         if (mid == startInx)
+    //         {
+    //             result = lastResult;
+    //         }
+    //         else if (mid == endInx)
+    //         {
+    //             result = lastResult2;
+    //         }
+    //         else
+    //         {
+    //             _cmpMatchingTvutimestamp(mid, tvutimestamp, result);
+    //         }
+
+    //         const tvushm::ItemInfo &item = *(result.pItem);
+    //         if (!item.IsReadingSuccess(mid))
+    //         {
+    //             DEBUG_ERROR_CR(
+    //                 "It can not open the item data for searching tvutimestamp."
+    //                 "nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+    //                 , GetName()
+    //                 , mid
+    //                 , tvutimestamp
+    //                 );
+    //             break;
+    //         }
+
+    //         if (!item.HasGottenTvutimestamp(mid))
+    //         {
+    //             DEBUG_WARN_CR(
+    //                 "It did not get the tvutimestamp from the item data for searching tvutimestamp."
+    //                 "nm:%s,idx:%u,v1:0x%" PRIx64 "ms"
+    //                 , GetName()
+    //                 , mid
+    //                 , tvutimestamp
+    //                 );
+    //             break;
+    //         }
+
+    //         if (result.cmpRet == 0) {
+    //             matchingTvustamp = item.GetTvutimestamp();
+    //             matchingItem = result;
+    //             bGotMatching = true;
+    //             break;
+    //         } else if (result.cmpRet < 0) {
+    //             left = mid + 1;
+    //         } else {
+    //             matchingTvustamp = item.GetTvutimestamp();
+    //             matchingItem = result;
+    //             bGotMatching = true;
+    //             right = mid - 1;
+    //         }
+    //     }
+
+    //     if (!bGotMatching)
+    //     {
+    //         DEBUG_ERROR_CR(
+    //             "It was impossible that did not get matching item here."
+    //             "nm:%s,expect:0x%" PRIx64 ",min:0x%" PRIx64 ",max:0x%" PRIx64 ",-:%" PRId64 "ms"
+    //             , GetName()
+    //             , tvutimestamp
+    //             , minTvustamp
+    //             , maxTvustamp
+    //             , LibshmutilTvutimestampMinusWithMS(maxTvustamp, minTvustamp)
+    //         );
+    //     }
+    // } while(0);
+
+    // int64_t diffTime = _libshm_get_sys_ms64() - beginTime;
+    // if (bGotMatching)
+    // {
+    //     if (diffTime <= 5)
+    //     {
+    //         DEBUG_INFO_CR(
+    //             "It found the item data for searching tvutimestamp."
+    //             "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+    //             ",tm:%" PRId64 ""
+    //             , GetName()
+    //             , matchingItem.itemIdx
+    //             , tvutimestamp
+    //             , matchingTvustamp
+    //             , LibshmutilTvutimestampMinusWithMS(matchingTvustamp, tvutimestamp)
+    //             , diffTime
+    //         );
+    //     }
+    //     else
+    //     {
+    //         DEBUG_WARN_CR(
+    //             "It found the item data for searching tvutimestamp."
+    //             "nm:%s,idx:%u,expect:0x%" PRIx64 ",find:0x%" PRIx64 ",-:%" PRId64 "ms"
+    //             ",tm:%" PRId64 ""
+    //             , GetName()
+    //             , matchingItem.itemIdx
+    //             , tvutimestamp
+    //             , matchingTvustamp
+    //             , LibshmutilTvutimestampMinusWithMS(matchingTvustamp, tvutimestamp)
+    //             , diffTime
+    //         );
+    //     }
+    // }
+    // else
+    // {
+    //     DEBUG_WARN_CR(
+    //         "It did not find the item data for searching tvutimestamp."
+    //         "nm:%s,expect:0x%" PRIx64 ",min:0x%" PRIx64 ", max:0x%" PRIx64 ""
+    //         ",tm:%" PRId64 ""
+    //         , GetName()
+    //         , tvutimestamp
+    //         , minTvustamp, maxTvustamp
+    //         , diffTime
+    //     );
+    // }
+
+    // return bGotMatching;
+}
+
+static bool _isPtsValid(const uint64_t &pts)
+{
+    return true;
+}
+
+static int64_t _uint64Minus(uint64_t v1, uint64_t v2)
+{
+    return (int64_t)(v1-v2);
+}
+
+bool CLibShmMediaCtx::SearchTheFirstMatchingItemWithPts(
+    const uint64_t &pts
+    , ResultRecorder &matchingItem
+    )
+{
+    FnTimestampValid_t fnPtsValid =
+        std::bind(&_isPtsValid, std::placeholders::_1);
+    FnCmpFetchingItem_t fnCmp =
+        std::bind(&CLibShmMediaCtx::_cmpMatchingPts, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+    FnGetItemTimeVal_t fnGetTime =
+        std::bind(&tvushm::ItemInfo::GetPts, std::placeholders::_1);
+    FnHasGottenTimeVal_t fnGottenTime =
+        std::bind(&tvushm::ItemInfo::HasGottenPts, std::placeholders::_1, std::placeholders::_2);
+    FnTimestampValMinus_t fnMinus = std::bind(&_uint64Minus, std::placeholders::_1, std::placeholders::_2);
+    return SearchFirstItemMatching(pts, matchingItem, fnPtsValid, fnCmp, fnGetTime, fnGottenTime, fnMinus, "pts");
 }
 
 #if defined(TVU_LINUX)
@@ -2092,6 +3136,19 @@ LibShmMediaCreate
     , uint32_t item_length
 )
 {
+    return LibShmMediaCreate2(pMemoryName, header_len, item_count, item_length, S_IRUSR | S_IWUSR);
+}
+
+libshm_media_handle_t
+LibShmMediaCreate2
+(
+    const char * pMemoryName
+    , uint32_t header_len
+    , uint32_t item_count
+    , uint32_t item_length
+    , mode_t mode
+)
+{
     CLibShmMediaCtx             *pctx   = NULL;
     libshm_media_handle_t    h       = NULL;
 
@@ -2103,7 +3160,7 @@ LibShmMediaCreate
         goto FAILED;
     }
 
-    if (pctx->CreateShmEntry(pMemoryName, header_len, item_count, item_length) < 0) {
+    if (pctx->CreateShmEntry(pMemoryName, header_len, item_count, item_length, mode) < 0) {
         goto FAILED;
     }
 
@@ -2268,6 +3325,74 @@ unsigned int LibShmMediaSetReadIndex(libshm_media_handle_t  h, char type, int64_
     return pctx->SetReadIndex(type, pts);
 }
 
+bool LibShmMediaSearchItemWithTvutimestamp(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , libshm_media_item_param_t *pmi)
+{
+    CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
+    if (!pctx || !pmi)
+    {
+        return false;
+    }
+    return pctx->SearchItemWithTvutimestamp(tvutimestamp, NULL, pmi, NULL);
+}
+
+bool LibShmMediaSearchItemWithTvutimestampV2(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    )
+{
+    CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
+    if (!pctx)
+    {
+        return false;
+    }
+    return pctx->SearchItemWithTvutimestamp(tvutimestamp, pmh, pmi, pext);
+}
+
+int LibShmMediaReadItemWithTvutimestamp(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , char type
+    , uint64_t pts
+    , bool *bFoundTvutimestamp
+    , bool *bFoundPts
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    )
+{
+    CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
+    if (!pctx)
+    {
+        return -1;
+    }
+    return pctx->PollReadDateWithTvutimestamp(pmh, pmi, NULL, bFoundTvutimestamp, bFoundPts, tvutimestamp, type, pts);
+}
+
+int LibShmMediaReadItemWithTvutimestampV2(
+    libshm_media_handle_t  h
+    , uint64_t tvutimestamp
+    , char type
+    , uint64_t pts
+    , bool *bFoundTvutimestamp
+    , bool *bFoundPts
+    , libshm_media_head_param_t *pmh
+    , libshm_media_item_param_t *pmi
+    , libshmmedia_extend_data_info_t *pext
+    )
+{
+    CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
+    if (!pctx)
+    {
+        return -1;
+    }
+    return pctx->PollReadDateWithTvutimestamp(pmh, pmi, pext, bFoundTvutimestamp, bFoundPts, tvutimestamp, type, pts);
+}
+
 const uint8_t * LibShmMediaGeHeadAddr(libshm_media_handle_t h)
 {
     CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
@@ -2386,7 +3511,19 @@ int LibShmMediaPollReadData(
 )
 {
     CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
-    return pctx->PollReadData(pmh, pmi, timeout);
+    return pctx->PollReadData(pmh, pmi, NULL, timeout);
+}
+
+int LibShmMediaPollReadDataV2(
+    libshm_media_handle_t         h
+    , libshm_media_head_param_t   *pmh
+    , libshm_media_item_param_t   *pmi
+    , libshmmedia_extend_data_info_t *pext
+    , unsigned int                timeout
+    )
+{
+    CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
+    return pctx->PollReadData(pmh, pmi, pext, timeout);
 }
 
 int LibShmMediaReadData(
@@ -2396,7 +3533,7 @@ int LibShmMediaReadData(
 )
 {
     CLibShmMediaCtx    *pctx    = (CLibShmMediaCtx *)h;
-    return pctx->PollReadData(pmh, pmi, 0);
+    return pctx->PollReadData(pmh, pmi, NULL, 0);
 }
 
 int LibShmMediaReadDataWithoutIndexStep(
@@ -2406,7 +3543,7 @@ int LibShmMediaReadDataWithoutIndexStep(
 )
 {
     CLibShmMediaCtx    *pctx = (CLibShmMediaCtx *)h;
-    return pctx->PollReadDataWithoutIndexStep(pmh, pmi, 0);
+    return pctx->PollReadDataWithoutIndexStep(pmh, pmi, NULL, 0);
 }
 
 void LibShmMediaReadIndexStep(

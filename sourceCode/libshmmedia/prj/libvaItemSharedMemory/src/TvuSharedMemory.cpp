@@ -294,6 +294,11 @@ namespace tvushm
 
     bool SharedMemory::Create(const char*name,uint64_t size,bool&isNew)
     {
+        return Create(name, size, isNew, S_IRUSR | S_IWUSR);
+    }
+
+    bool SharedMemory::Create(const char*name,uint64_t size,bool&isNew,mode_t mode)
+    {
         if (_shmId!=-1 || _bytes!=NULL)
         {
             return false;
@@ -301,12 +306,12 @@ namespace tvushm
 
         //try open;
         int shmId=shm_open(    name, O_RDWR,
-            S_IRUSR | S_IWUSR);
+            mode);
 
         if (shmId == -1)
         {
             shmId=shm_open(name, O_CREAT | O_RDWR,
-                S_IRUSR | S_IWUSR);
+                mode);
 
             if (shmId == -1)
             {

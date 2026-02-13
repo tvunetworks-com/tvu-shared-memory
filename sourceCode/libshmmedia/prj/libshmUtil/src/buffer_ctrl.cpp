@@ -637,113 +637,113 @@ namespace tvushm {
     int BufferCtrlCompactGetBytesCountU32(uint32_t value)
     {
         if (value<(1<<7))
-		{
-			return 1;
-		}
-		else if (value<(1<<14))
-		{
-			return 2;
-		}
-		else if (value<(1<<21))
-		{
-			return 3;
-		}
-		else if (value<(1<<28))
-		{
-			return 4;
-		}
-		else
-		{
-			return 5;
-		}
+        {
+            return 1;
+        }
+        else if (value<(1<<14))
+        {
+            return 2;
+        }
+        else if (value<(1<<21))
+        {
+            return 3;
+        }
+        else if (value<(1<<28))
+        {
+            return 4;
+        }
+        else
+        {
+            return 5;
+        }
     }
 
     int BufferCtrlCompactGetBytesCountU64(uint64_t value)
     {
         if (value<(1<<7))
-		{
-			return 1;
-		}
-		else if (value<(1<<14))
-		{
-			return 2;
-		}
-		else if (value<(1<<21))
-		{
-			return 3;
-		}
-		else if (value<(1<<28))
-		{
-			return 4;
-		}
-		else if (value<(TVU_1LL<<35))
-		{
-			return 5;
-		}
-		else if (value<(TVU_1LL<<42))
-		{
-			return 6;
-		}
-		else if (value<(TVU_1LL<<49))
-		{
-			return 7;
-		}
-		else if (value<(TVU_1LL<<56))
-		{
-			return 8;
-		}
-		else if (value<(TVU_1LL<<63))
-		{
-			return 9;
-		}
-		else
-		{
-			return 10;
-		}
+        {
+            return 1;
+        }
+        else if (value<(1<<14))
+        {
+            return 2;
+        }
+        else if (value<(1<<21))
+        {
+            return 3;
+        }
+        else if (value<(1<<28))
+        {
+            return 4;
+        }
+        else if (value<(TVU_1LL<<35))
+        {
+            return 5;
+        }
+        else if (value<(TVU_1LL<<42))
+        {
+            return 6;
+        }
+        else if (value<(TVU_1LL<<49))
+        {
+            return 7;
+        }
+        else if (value<(TVU_1LL<<56))
+        {
+            return 8;
+        }
+        else if (value<(TVU_1LL<<63))
+        {
+            return 9;
+        }
+        else
+        {
+            return 10;
+        }
     }
 
     int BufferCtrlCompactGetBytesCountVariant(const Variant& value)
     {
         Variant::ValueType valueType=value.GetType();
-		int bytesNeeded=BufferCtrlCompactGetBytesCountU32((uint32)valueType);
-		switch(valueType)
-		{
-		case Variant::CharType:
-		case Variant::ByteType:
-		case Variant::ShortType:
-		case Variant::WordType:
-		case Variant::Int32Type:
-		case Variant::Uint32Type:
-		case Variant::FloatType:
-			bytesNeeded+=BufferCtrlCompactGetBytesCountU32(value.GetAsUint32());
-			break;
-		case Variant::Int64Type:
-		case Variant::Uint64Type:
-		case Variant::DoubleType:
-			bytesNeeded+=BufferCtrlCompactGetBytesCountU64(value.GetAsUint64());
-			break;
-		case Variant::Uint128Type:
-			bytesNeeded+=sizeof(uint128_t);
-			break;
-		case Variant::StringType:
-			{
-				const std::string&stringValue=value.GetAsString();
-				uint32 stringLength=(uint32)stringValue.length();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)stringLength);
-				bytesNeeded+=(int)stringLength;
-				break;
-			}
-		case Variant::BytesType:
-			{
-				const Bytes&bytesValue=value.GetAsBytes();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)bytesValue.GetSize());
-				bytesNeeded+=(int)bytesValue.GetSize();
-				break;
-			}
-		default:
-			break;
-		}
-		return bytesNeeded;
+        int bytesNeeded=BufferCtrlCompactGetBytesCountU32((uint32)valueType);
+        switch(valueType)
+        {
+        case Variant::CharType:
+        case Variant::ByteType:
+        case Variant::ShortType:
+        case Variant::WordType:
+        case Variant::Int32Type:
+        case Variant::Uint32Type:
+        case Variant::FloatType:
+            bytesNeeded+=BufferCtrlCompactGetBytesCountU32(value.GetAsUint32());
+            break;
+        case Variant::Int64Type:
+        case Variant::Uint64Type:
+        case Variant::DoubleType:
+            bytesNeeded+=BufferCtrlCompactGetBytesCountU64(value.GetAsUint64());
+            break;
+        case Variant::Uint128Type:
+            bytesNeeded+=sizeof(uint128_t);
+            break;
+        case Variant::StringType:
+            {
+                const std::string&stringValue=value.GetAsString();
+                uint32 stringLength=(uint32)stringValue.length();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)stringLength);
+                bytesNeeded+=(int)stringLength;
+                break;
+            }
+        case Variant::BytesType:
+            {
+                const Bytes&bytesValue=value.GetAsBytes();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)bytesValue.GetSize());
+                bytesNeeded+=(int)bytesValue.GetSize();
+                break;
+            }
+        default:
+            break;
+        }
+        return bytesNeeded;
     }
 
     int BufferCtrlCompactEncodeValueU8(BufferController_t *p, uint8_t value)
@@ -769,24 +769,24 @@ namespace tvushm {
             return -1;
         }
 
-		uint8_t bytes[16];
-		if (bytesNeeded<1)
-		{
-			bytesNeeded=1;
-		}
-		bytes[bytesNeeded-1]=(value&0x7F);
-		value>>=7;
-		if (bytesNeeded>1)
-		{
-			for (int i=bytesNeeded-2;i>=0;i--)
-			{
-				bytes[i]=(value&0x7F)|0x80;
-				value>>=7;
-			}
-		}
+        uint8_t bytes[16];
+        if (bytesNeeded<1)
+        {
+            bytesNeeded=1;
+        }
+        bytes[bytesNeeded-1]=(value&0x7F);
+        value>>=7;
+        if (bytesNeeded>1)
+        {
+            for (int i=bytesNeeded-2;i>=0;i--)
+            {
+                bytes[i]=(value&0x7F)|0x80;
+                value>>=7;
+            }
+        }
 
         BufferCtrlPushData(p, bytes, bytesNeeded);
-		return bytesNeeded;
+        return bytesNeeded;
 	}
 
     int BufferCtrlCompactEncodeValueU64(BufferController_t *p, uint64_t value)
@@ -802,342 +802,342 @@ namespace tvushm {
             return -1;
         }
 
-		uint8_t bytes[16];
-		if (bytesNeeded<1)
-		{
-			bytesNeeded=1;
-		}
-		bytes[bytesNeeded-1]=(value&0x7F);
-		value>>=7;
-		if (bytesNeeded>1)
-		{
-			for (int i=bytesNeeded-2;i>=0;i--)
-			{
-				bytes[i]=(value&0x7F)|0x80;
-				value>>=7;
-			}
-		}
+        uint8_t bytes[16];
+        if (bytesNeeded<1)
+        {
+            bytesNeeded=1;
+        }
+        bytes[bytesNeeded-1]=(value&0x7F);
+        value>>=7;
+        if (bytesNeeded>1)
+        {
+            for (int i=bytesNeeded-2;i>=0;i--)
+            {
+                bytes[i]=(value&0x7F)|0x80;
+                value>>=7;
+            }
+        }
 
         FAILED_PUSH_DATA(BufferCtrlPushData(p, bytes, bytesNeeded));
 
-		return bytesNeeded;
+        return bytesNeeded;
     }
 
     int BufferCtrlCompactDecodeValueU8(BufferController_t *p, uint8_t&valueRef)
-	{
-		unsigned int maxBytes=2;
-		unsigned int value=0;
+    {
+        unsigned int maxBytes=2;
+        unsigned int value=0;
         int curpos = BufferCtrlTellCurPos(p);
         uint32_t size = BufferCtrlReadBufLeftLen(p);
-		for (unsigned int i=0;i<maxBytes;i++)
-		{
-			if (size<=i)
-			{
+        for (unsigned int i=0;i<maxBytes;i++)
+        {
+            if (size<=i)
+            {
                 BufferCtrlSeek(p, curpos, SEEK_SET);
-				return 0; //more bytes expected.
-			}
-			uint8_t singleByte=BufferCtrlR8(p);
-			value=(value<<7)|(singleByte&0x7F);
-			if ((singleByte & 0x80)==0)//terminal
-			{
-				if (value>=0x100)
-				{
+                return 0; //more bytes expected.
+            }
+            uint8_t singleByte=BufferCtrlR8(p);
+            value=(value<<7)|(singleByte&0x7F);
+            if ((singleByte & 0x80)==0)//terminal
+            {
+                if (value>=0x100)
+                {
                     BufferCtrlSeek(p, curpos, SEEK_SET);
-					return -1;
-				}
-				valueRef=(uint8_t)value; //may truncate.
-				return i+1;
-			}
-		}
+                    return -1;
+                }
+                valueRef=(uint8_t)value; //may truncate.
+                return i+1;
+            }
+        }
         BufferCtrlSeek(p, curpos, SEEK_SET);
-		return -1; //the last byte should not start with highest bit 1.
-	}
+        return -1; //the last byte should not start with highest bit 1.
+    }
 
-	int BufferCtrlCompactDecodeValueU16(BufferController_t *p, uint16_t&valueRef)
-	{
-		unsigned int maxBytes=3;
-		unsigned int value=0;
+    int BufferCtrlCompactDecodeValueU16(BufferController_t *p, uint16_t&valueRef)
+    {
+        unsigned int maxBytes=3;
+        unsigned int value=0;
         uint32_t size = BufferCtrlReadBufLeftLen(p);
         int curpos = BufferCtrlTellCurPos(p);
-		for (unsigned int i=0;i<maxBytes;i++)
-		{
-			if (size<=i)
-			{
+        for (unsigned int i=0;i<maxBytes;i++)
+        {
+            if (size<=i)
+            {
                 BufferCtrlSeek(p, curpos, SEEK_SET);
-				return 0; //more bytes expected.
-			}
-			uint8_t singleByte=BufferCtrlR8(p);
-			value=(value<<7)|(singleByte&0x7F);
-			if ((singleByte & 0x80)==0)//terminal
-			{
-				if (value>=0x10000)
-				{
+                return 0; //more bytes expected.
+            }
+            uint8_t singleByte=BufferCtrlR8(p);
+            value=(value<<7)|(singleByte&0x7F);
+            if ((singleByte & 0x80)==0)//terminal
+            {
+                if (value>=0x10000)
+                {
                     BufferCtrlSeek(p, curpos, SEEK_SET);
-					return -1; //overflow.
-				}
-				valueRef=(unsigned short)value; //may truncate.
-				return i+1;
-			}
-		}
+                    return -1; //overflow.
+                }
+                valueRef=(unsigned short)value; //may truncate.
+                return i+1;
+            }
+        }
         BufferCtrlSeek(p, curpos, SEEK_SET);
-		return -1; //the last byte should not start with highest bit 1.
-	}
+        return -1; //the last byte should not start with highest bit 1.
+    }
 
-	int BufferCtrlCompactDecodeValueU32(BufferController_t *p, uint32_t&valueRef)
-	{
-		unsigned int maxBytes=5; //32/7=4...4
-		unsigned int value=0;
+    int BufferCtrlCompactDecodeValueU32(BufferController_t *p, uint32_t&valueRef)
+    {
+        unsigned int maxBytes=5; //32/7=4...4
+        unsigned int value=0;
         int curpos = BufferCtrlTellCurPos(p);
         uint32_t size = BufferCtrlReadBufLeftLen(p);
-		for (unsigned int i=0;i<maxBytes;i++)
-		{
-			if (size<=i)
-			{
+        for (unsigned int i=0;i<maxBytes;i++)
+        {
+            if (size<=i)
+            {
                 BufferCtrlSeek(p, curpos, SEEK_SET);
-				return 0; //more bytes expected.
-			}
-			uint8_t singleByte=BufferCtrlR8(p);
+                return 0; //more bytes expected.
+            }
+            uint8_t singleByte=BufferCtrlR8(p);
 
-			if (i==maxBytes-1){
-				if ((value>>(32-7))!=0)
-				{
+            if (i==maxBytes-1){
+                if ((value>>(32-7))!=0)
+                {
                     BufferCtrlSeek(p, curpos, SEEK_SET);
-					return -1; //overflow.
-				}
-			}
-			value=(value<<7)|(singleByte&0x7F);
-			if ((singleByte & 0x80)==0)//terminal
-			{
-				valueRef=value;
-				return i+1;
-			}
-		}
+                    return -1; //overflow.
+                }
+            }
+            value=(value<<7)|(singleByte&0x7F);
+            if ((singleByte & 0x80)==0)//terminal
+            {
+                valueRef=value;
+                return i+1;
+            }
+        }
         BufferCtrlSeek(p, curpos, SEEK_SET);
-		return -1; //the last byte should not start with highest bit 1.
-	}
+        return -1; //the last byte should not start with highest bit 1.
+    }
 
-	int BufferCtrlCompactDecodeValueU64(BufferController_t *p, uint64_t&valueRef)
-	{
-		unsigned int maxBytes=10; //64/7=9...1
-		uint64_t value=0;
-		int curpos = BufferCtrlTellCurPos(p);
+    int BufferCtrlCompactDecodeValueU64(BufferController_t *p, uint64_t&valueRef)
+    {
+        unsigned int maxBytes=10; //64/7=9...1
+        uint64_t value=0;
+        int curpos = BufferCtrlTellCurPos(p);
         uint32_t size = BufferCtrlReadBufLeftLen(p);
-		for (unsigned int i=0;i<maxBytes;i++)
-		{
-			if (size<=i)
-			{
+        for (unsigned int i=0;i<maxBytes;i++)
+        {
+            if (size<=i)
+            {
                 BufferCtrlSeek(p, curpos, SEEK_SET);
-				return 0; //more bytes expected.
-			}
-			uint8_t singleByte=BufferCtrlR8(p);
+                return 0; //more bytes expected.
+            }
+            uint8_t singleByte=BufferCtrlR8(p);
 
-			if (i==maxBytes-1){
-				if ((value>>(64-7))!=0)
-				{
+            if (i==maxBytes-1){
+                if ((value>>(64-7))!=0)
+                {
                     BufferCtrlSeek(p, curpos, SEEK_SET);
-					return -1; //overflow.
-				}
-			}
-			value=(value<<7)|(singleByte&0x7F);
-			if ((singleByte & 0x80)==0) //terminal
-			{
-				valueRef=value;
-				return i+1;
-			}
-		}
+                    return -1; //overflow.
+                }
+            }
+            value=(value<<7)|(singleByte&0x7F);
+            if ((singleByte & 0x80)==0) //terminal
+            {
+                valueRef=value;
+                return i+1;
+            }
+        }
         BufferCtrlSeek(p, curpos, SEEK_SET);
-		return -1; //the last byte should not start with highest bit 1.
-	}
+        return -1; //the last byte should not start with highest bit 1.
+    }
 
     int BufferCtrlCompactEncodeVariant(BufferController_t *p, const Variant& value)
-	{
-		Variant::ValueType valueType=value.GetType();
-		int bytesNeeded=BufferCtrlCompactGetBytesCountU32((uint32_t)valueType);
-		int bytesEncoded=0;
-		switch(valueType)
-		{
-		case Variant::NullType:
-			FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)valueType), bytesEncoded);
-			break;
-		case Variant::CharType:
-		case Variant::ByteType:
-		case Variant::ShortType:
-		case Variant::WordType:
-		case Variant::Int32Type:
-		case Variant::Uint32Type:
-		case Variant::FloatType:
-			{
-				uint32_t uint32Value=value.GetAsUint32();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU32(uint32Value);
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32_t)valueType), bytesEncoded);
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, uint32Value), bytesEncoded);
-				break;
-			}
-		case Variant::Int64Type:
-		case Variant::Uint64Type:
-		case Variant::DoubleType:
-			{
-				uint64 uint64Value=value.GetAsUint64();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU64(uint64Value);
+    {
+        Variant::ValueType valueType=value.GetType();
+        int bytesNeeded=BufferCtrlCompactGetBytesCountU32((uint32_t)valueType);
+        int bytesEncoded=0;
+        switch(valueType)
+        {
+        case Variant::NullType:
+            FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)valueType), bytesEncoded);
+            break;
+        case Variant::CharType:
+        case Variant::ByteType:
+        case Variant::ShortType:
+        case Variant::WordType:
+        case Variant::Int32Type:
+        case Variant::Uint32Type:
+        case Variant::FloatType:
+            {
+                uint32_t uint32Value=value.GetAsUint32();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU32(uint32Value);
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32_t)valueType), bytesEncoded);
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, uint32Value), bytesEncoded);
+                break;
+            }
+        case Variant::Int64Type:
+        case Variant::Uint64Type:
+        case Variant::DoubleType:
+            {
+                uint64 uint64Value=value.GetAsUint64();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU64(uint64Value);
 
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p,(uint32)valueType), bytesEncoded);
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU64(p, uint64Value), bytesEncoded);
-				break;
-			}
-		case Variant::Uint128Type:
-			{
-				bytesNeeded+=sizeof(uint128_t);
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p,(uint32)valueType), bytesEncoded);
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU64(p, uint64Value), bytesEncoded);
+                break;
+            }
+        case Variant::Uint128Type:
+            {
+                bytesNeeded+=sizeof(uint128_t);
 
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p,(uint32)valueType), bytesEncoded);
-				const Uint128&uint128Value=value.GetAsUint128();
-				FAILED_WRITE_DATA_STEP(BufferCtrlWriteRawDataBeU128(p, uint128Value), bytesEncoded);
-				break;
-			}
-		case Variant::StringType:
-			{
-				const std::string&stringValue=value.GetAsString();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU32(stringValue.length());
-				bytesNeeded+=(int)stringValue.length();
-				FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)valueType), bytesEncoded);
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p,(uint32)valueType), bytesEncoded);
+                const Uint128&uint128Value=value.GetAsUint128();
+                FAILED_WRITE_DATA_STEP(BufferCtrlWriteRawDataBeU128(p, uint128Value), bytesEncoded);
+                break;
+            }
+        case Variant::StringType:
+            {
+                const std::string&stringValue=value.GetAsString();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU32(stringValue.length());
+                bytesNeeded+=(int)stringValue.length();
+                FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)valueType), bytesEncoded);
                 FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)stringValue.length()), bytesEncoded);
-				FAILED_WRITE_DATA_STEP(BufferCtrlWriteBinary(p, (const uint8_t *)stringValue.c_str(),(int)stringValue.length()), bytesEncoded);
-				break;
-			}
-		case Variant::BytesType:
-			{
-				const Bytes&bytesValue=value.GetAsBytes();
-				bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)bytesValue.GetSize());
-				bytesNeeded+=bytesValue.GetSize();
+                FAILED_WRITE_DATA_STEP(BufferCtrlWriteBinary(p, (const uint8_t *)stringValue.c_str(),(int)stringValue.length()), bytesEncoded);
+                break;
+            }
+        case Variant::BytesType:
+            {
+                const Bytes&bytesValue=value.GetAsBytes();
+                bytesNeeded+=BufferCtrlCompactGetBytesCountU32((uint32)bytesValue.GetSize());
+                bytesNeeded+=bytesValue.GetSize();
 
                 FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)valueType), bytesEncoded);
                 FAILED_WRITE_DATA_STEP(BufferCtrlCompactEncodeValueU32(p, (uint32)bytesValue.GetSize()), bytesEncoded);
-				FAILED_WRITE_DATA_STEP(BufferCtrlWriteBinary(p, bytesValue.GetBufAddr(),bytesValue.GetSize()), bytesEncoded);
-				break;
-			}
-		default:
-			return -1;
-		}
-		return bytesNeeded;
-	}
+                FAILED_WRITE_DATA_STEP(BufferCtrlWriteBinary(p, bytesValue.GetBufAddr(),bytesValue.GetSize()), bytesEncoded);
+                break;
+            }
+        default:
+            return -1;
+        }
+        return bytesNeeded;
+    }
 
     int BufferCtrlCompactDecodeVariant(BufferController_t *p, Variant&valueRef, bool referenceOnly)
     {
         uint32_t size = BufferCtrlReadBufLeftLen(p);
         const uint8*bytes=(const uint8_t*)BufferCtrlGetCurPtr(p);
-		int totalBytesDecoded=0;
-		Variant::ValueType variantType;
-		{
-			uint32 decodedVariantType=0;
-			int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedVariantType);
-			if (bytesDecoded<=0)
-			{
-				return bytesDecoded;
-			}
-			variantType=(Variant::ValueType)decodedVariantType;
-			bytes+=bytesDecoded;
-			size-=(uint32_t)bytesDecoded;
-			totalBytesDecoded+=bytesDecoded;
-		}
-		switch(variantType)
-		{
-		case Variant::NullType:
-			valueRef.Clear();
-			break;
-		case Variant::CharType:
-		case Variant::ByteType:
-		case Variant::ShortType:
-		case Variant::WordType:
-		case Variant::Int32Type:
-		case Variant::Uint32Type:
-		case Variant::FloatType:
-			{
-				uint32 decodedValue;
-				int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedValue);
-				if (bytesDecoded<=0)
-				{
-					return bytesDecoded;
-				}
-				valueRef.SetAsUint32(decodedValue,variantType);
-				totalBytesDecoded+=bytesDecoded;
-			}
-			break;
-		case Variant::Int64Type:
-		case Variant::Uint64Type:
-		case Variant::DoubleType:
-			{
-				uint64 decodedValue;
-				int bytesDecoded=BufferCtrlCompactDecodeValueU64(p, decodedValue);
-				if (bytesDecoded<=0)
-				{
-					return bytesDecoded;
-				}
-				valueRef.SetAsUint64(decodedValue,variantType);
-				totalBytesDecoded+=bytesDecoded;
-			}
-			break;
-		case Variant::Uint128Type:
-			{
-				Uint128 decodedValue;
-				int bytesDecoded=BufferCtrlReadRawDataBeU128(p, decodedValue);
-				if (bytesDecoded<=0)
-				{
-					return bytesDecoded;
-				}
-				valueRef.SetAsUint128(decodedValue);
-				totalBytesDecoded+=bytesDecoded;
-			}
-			break;
-		case Variant::StringType:
-			{
-				uint32_t decodedStringLength;
-				int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedStringLength);
-				if (bytesDecoded<=0)
-				{
-					return bytesDecoded;
-				}
-				size-=(uint32_t)bytesDecoded;
-				if (size<decodedStringLength)
-				{
-					return 0;
-				}
-				bytes+=bytesDecoded;
-				totalBytesDecoded+=bytesDecoded;
-				valueRef.SetAsString((const char*)bytes,decodedStringLength);
-				totalBytesDecoded+=(int)decodedStringLength;
+        int totalBytesDecoded=0;
+        Variant::ValueType variantType;
+        {
+            uint32 decodedVariantType=0;
+            int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedVariantType);
+            if (bytesDecoded<=0)
+            {
+                return bytesDecoded;
+            }
+            variantType=(Variant::ValueType)decodedVariantType;
+            bytes+=bytesDecoded;
+            size-=(uint32_t)bytesDecoded;
+            totalBytesDecoded+=bytesDecoded;
+        }
+        switch(variantType)
+        {
+        case Variant::NullType:
+            valueRef.Clear();
+            break;
+        case Variant::CharType:
+        case Variant::ByteType:
+        case Variant::ShortType:
+        case Variant::WordType:
+        case Variant::Int32Type:
+        case Variant::Uint32Type:
+        case Variant::FloatType:
+            {
+                uint32 decodedValue;
+                int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedValue);
+                if (bytesDecoded<=0)
+                {
+                    return bytesDecoded;
+                }
+                valueRef.SetAsUint32(decodedValue,variantType);
+                totalBytesDecoded+=bytesDecoded;
+            }
+            break;
+        case Variant::Int64Type:
+        case Variant::Uint64Type:
+        case Variant::DoubleType:
+            {
+                uint64 decodedValue;
+                int bytesDecoded=BufferCtrlCompactDecodeValueU64(p, decodedValue);
+                if (bytesDecoded<=0)
+                {
+                    return bytesDecoded;
+                }
+                valueRef.SetAsUint64(decodedValue,variantType);
+                totalBytesDecoded+=bytesDecoded;
+            }
+            break;
+        case Variant::Uint128Type:
+            {
+                Uint128 decodedValue;
+                int bytesDecoded=BufferCtrlReadRawDataBeU128(p, decodedValue);
+                if (bytesDecoded<=0)
+                {
+                    return bytesDecoded;
+                }
+                valueRef.SetAsUint128(decodedValue);
+                totalBytesDecoded+=bytesDecoded;
+            }
+            break;
+        case Variant::StringType:
+            {
+                uint32_t decodedStringLength;
+                int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedStringLength);
+                if (bytesDecoded<=0)
+                {
+                    return bytesDecoded;
+                }
+                size-=(uint32_t)bytesDecoded;
+                if (size<decodedStringLength)
+                {
+                    return 0;
+                }
+                bytes+=bytesDecoded;
+                totalBytesDecoded+=bytesDecoded;
+                valueRef.SetAsString((const char*)bytes,decodedStringLength);
+                totalBytesDecoded+=(int)decodedStringLength;
                 BufferCtrlReadSkip(p, decodedStringLength);
-			}
-			break;
-		case Variant::BytesType:
-			{
-				uint32 decodedBytesNum;
-				int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedBytesNum);
-				if (bytesDecoded<=0)
-				{
-					return bytesDecoded;
-				}
-				size-=(uint32_t)bytesDecoded;
-				if (size<decodedBytesNum)
-				{
-					return 0;
-				}
-				bytes+=bytesDecoded;
-				totalBytesDecoded+=bytesDecoded;
-				if (referenceOnly)
-				{
-					valueRef.SetAsBytesByReference((byte*)bytes,decodedBytesNum);
-				}
-				else
-				{
-					valueRef.SetAsBytes(bytes,decodedBytesNum);
-				}
-				totalBytesDecoded+=(int)decodedBytesNum;
+            }
+            break;
+        case Variant::BytesType:
+            {
+                uint32 decodedBytesNum;
+                int bytesDecoded=BufferCtrlCompactDecodeValueU32(p, decodedBytesNum);
+                if (bytesDecoded<=0)
+                {
+                    return bytesDecoded;
+                }
+                size-=(uint32_t)bytesDecoded;
+                if (size<decodedBytesNum)
+                {
+                    return 0;
+                }
+                bytes+=bytesDecoded;
+                totalBytesDecoded+=bytesDecoded;
+                if (referenceOnly)
+                {
+                    valueRef.SetAsBytesByReference((byte*)bytes,decodedBytesNum);
+                }
+                else
+                {
+                    valueRef.SetAsBytes(bytes,decodedBytesNum);
+                }
+                totalBytesDecoded+=(int)decodedBytesNum;
                 BufferCtrlReadSkip(p, decodedBytesNum);
-			}
-			break;
-		default:
-			return -1;
-		}
-		return totalBytesDecoded;
+            }
+            break;
+        default:
+            return -1;
+        }
+        return totalBytesDecoded;
     }
 
 }

@@ -90,6 +90,155 @@ static int Delete(const char *name)
     return 0;
 }
 
+static uint64_t basetvutimestamp = 0x0900000000000000 | 0x10;
+
+static libshm_media_handle_t _createAndWriteShm(const char *shmName, int wcount)
+{
+    libshm_media_head_param_t   ohp     = {0};
+    {
+        LibShmMediaHeadParamInit(&ohp, sizeof (ohp));
+    }
+    libshm_media_item_param_t   ohi     = {0};
+    {
+        LibShmMediaItemParamInit(&ohi, sizeof (ohi));
+    }
+    libshm_media_handle_t   h           = NULL;
+    int count = 1024;
+    int item_size = 1024;
+    int videolen = 16;
+    h       = LibShmMediaCreate(shmName, 1024, count, item_size);
+
+    ohp.i_vbr           = 10240;
+    ohp.i_sarw          = 1;
+    ohp.i_sarh          = 1;
+    ohp.i_srcw          = 720;
+    ohp.i_srch          = 480;
+    ohp.i_dstw          = 1920;
+    ohp.i_dsth          = 1080;
+    ohp.u_videofourcc   = 'h' << 24 | '2' << 16 | '6' << 8  | '4';
+    ohp.i_duration      = 1001;
+    ohp.i_scale         = 30000;
+    ohp.u_audiofourcc   = 'a' << 24 | 'a' << 16 | 0x02 << 8 | 0x02;
+    ohp.i_channels      = 2;
+    ohp.i_depth         = 16;
+    ohp.i_samplerate    = 48000;
+
+    uint64_t now = TVUUTIL_GET_SYS_MS64();
+    uint64_t base = now;
+
+    uint8_t *video_data = (uint8_t *)malloc(videolen + 32);
+
+    memcpy(video_data, "1234567890abcdef", videolen);
+
+    for (int i = 0; i < wcount; i++)
+    {
+        uint64_t next_pts    = base + i * 20;
+
+        ohi.i64_vdts    =
+        ohi.i64_vpts    = next_pts;
+        ohi.p_vData     = (uint8_t *)video_data;
+        ohi.i_vLen      = videolen;
+        ohi.i64_apts    =
+        ohi.i64_adts    = next_pts;
+        ohi.p_aData     = NULL;
+        ohi.i_aLen      = 0;
+
+        int ret = 0;
+
+
+#if 1
+        uint8_t aExtBuff[1024] = {0};
+        uint32_t iExtBuffSize = 0;
+        uint64_t tvutimestamp = basetvutimestamp + i;
+
+
+        libshmmedia_extend_data_info_t myExt;
+        {
+            memset(&myExt, 0, sizeof (myExt));
+        }
+
+        {
+            myExt.i_timecode_fps_index = 8;
+            myExt.p_timecode_fps_index = (const uint8_t *)&tvutimestamp;
+        }
+
+        int iExtBuffSizeBeforeAlloc = LibShmMediaEstimateExtendDataSize(&myExt);
+        iExtBuffSize = LibShmMediaWriteExtendData(aExtBuff, iExtBuffSizeBeforeAlloc, &myExt);
+
+        ohi.i_userDataType = LIBSHM_MEDIA_TYPE_TVU_EXTEND_DATA_V2;
+        ohi.p_userData = aExtBuff;
+        ohi.i_userDataLen = iExtBuffSize;
+
+
+        libshmmedia_extend_data_info_t ext2;
+        {
+            memset(&ext2, 0, sizeof (ext2));
+        }
+
+        LibShmMeidaParseExtendDataV2(&ext2, aExtBuff, iExtBuffSize);
+        if (i == 0)
+            printf("n:%d, p:%" PRIx64 "\n"
+                , ext2.i_timecode_fps_index
+                , *(uint64_t *)ext2.p_timecode_fps_index
+            );
+
+#endif
+        ret     = LibShmMediaPollSendable(h, 0);
+
+        if (ret < 0) {
+            printf("sending failed\n");
+            break;
+        } else if (ret == 0) {
+            printf("need wait to resend\n");
+            Sleep(1);
+            continue;
+        }
+        else {
+            // poll success
+            ret = LibShmMediaSendData(h, &ohp, &ohi);
+            if (ret < 0) {
+                printf("sendable status, send failed, why?, ret %d\n", ret);
+                break;
+            }
+        }
+    }
+
+    return h;
+}
+
+static void _destroyShm(libshm_media_handle_t h)
+{
+    LibShmMediaDestroy(h);
+}
+
+static void gtest_tvutimestamp_searching()
+{
+    const char *shmName = "test000";
+    libshm_media_handle_t hwrite =_createAndWriteShm(shmName, 100);
+
+    /* test tvutimestamp search. */
+    {
+        libshm_media_handle_t h = LibShmMediaOpen(shmName, NULL, NULL);
+        LibShmMediaSeekReadIndex(h, 0);
+        libshm_media_item_param_t ohi;
+        {
+            LibShmMediaItemParamInit(&ohi, sizeof(libshm_media_item_param_t));
+        }
+        bool bGot = LibShmMediaSearchItemWithTvutimestamp(h, basetvutimestamp+10, &ohi);
+        if (bGot)
+        {
+            printf("got tvutimestamp.\n");
+        }
+        else
+        {
+            printf("not got tvutimestamp.\n");
+        }
+    }
+
+    _destroyShm(hwrite);
+    return;
+}
+
 #define  _DEBUG_WRITE_DESTROY   0
 
 static int Write(const char *name, int count, int item_size)
@@ -128,7 +277,7 @@ static int Write(const char *name, int count, int item_size)
     uint16_t channellayout[] = {0x02, 0x02, 0x06, 0x08};
     uint16_t nChannelLayout = sizeof(channellayout)/sizeof(channellayout[0]);
 
-    if (LibshmmediaAudioChannelLayoutSerializeToBinary(hChannel, channellayout, nChannelLayout))
+    if (LibshmmediaAudioChannelLayoutSerializeToBinary(hChannel, channellayout, nChannelLayout,false))
     {
         ohp.h_channel = hChannel;
         const uint8_t *pBin = NULL;
@@ -272,7 +421,7 @@ static int Write(const char *name, int count, int item_size)
     return 0;
 }
 
-int create_subtitle_private_protocol(uint8_t **ppSubtitle)
+static int create_subtitle_private_protocol(uint8_t **ppSubtitle)
 {
     int ret = 0;
     LibShmmediaSubtitlePrivateProtocolEntries entry = {};
@@ -380,7 +529,7 @@ static int Write2(const char *name, int count, int item_size)
     uint16_t channellayout[] = {0x02, 0x02, 0x06, 0x08};
     uint16_t nChannelLayout = sizeof(channellayout)/sizeof(channellayout[0]);
 
-    if (LibshmmediaAudioChannelLayoutSerializeToBinary(hChannel, channellayout, nChannelLayout))
+    if (LibshmmediaAudioChannelLayoutSerializeToBinary(hChannel, channellayout, nChannelLayout, false))
     {
         ohp.h_channel = hChannel;
         const uint8_t *pBin = NULL;
@@ -1161,6 +1310,10 @@ int main(int argc, char *argv[])
                 {
                     mode    = 2;
                 }
+                else if (optarg && optarg[0] == '3')
+                {
+                    mode    = 3;
+                }
             }
             break;
             case 'n':
@@ -1192,7 +1345,7 @@ int main(int argc, char *argv[])
         {
             Read2(name);
 #ifdef TVU_WINDOWS
-			::Sleep(1);
+            ::Sleep(1);
 #else
             usleep(100000);
 #endif
@@ -1205,6 +1358,10 @@ int main(int argc, char *argv[])
     else if (mode == 2)
     {
         Delete(name);
+    }
+    else if (mode == 3)
+    {
+        gtest_tvutimestamp_searching();
     }
 #elif 0 /* test robust */
     libshm_media_handle_t h = LibShmMediaCreate(argv[1], 1024, 100, 1024*1024*10);

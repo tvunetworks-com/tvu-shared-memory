@@ -29,6 +29,7 @@ namespace tvushm {
         int Compare(const CacheBuffer &)const;
         int Copy(const uint8_t *p, uint32_t n);
         int Copy(const CacheBuffer &o);
+        int MultiCopy(const uint8_t *p, uint32_t n);
         bool Alloc(uint32_t ndest);
         uint32_t GetAllocSize()const;
         void SetBufLen(uint32_t l);

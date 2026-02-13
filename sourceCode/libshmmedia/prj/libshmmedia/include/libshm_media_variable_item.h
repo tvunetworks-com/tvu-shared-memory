@@ -24,6 +24,7 @@
 #include "libshmmedia_common.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
     #define __EXTERN_C_BEGIN extern "C" {
@@ -59,6 +60,33 @@ libshm_media_handle_t LibViShmMediaCreate
     , uint32_t header_len
     , uint32_t item_count
     , uint64_t total_size
+);
+
+/**
+ *  Functionality:
+ *      used to create the share memory with specified permission mode, or just open it if the share memory had existed.
+ *  Parameter:
+ *      @pMemoryName:
+ *          share memory entry name
+ *      @header_len:
+ *          the share memory head size, which would store the media head data.
+ *      @item_count:
+ *          how many counts of share memory item counts.
+ *      @total_size:
+ *          total shm size.
+ *      @mode:
+ *          the permission mode for shm_open (e.g. S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP).
+ *  Return:
+ *      NULL, open failed. Or return the share memory handle.
+ */
+_LIBSHMMEDIA_DLL_
+libshm_media_handle_t LibViShmMediaCreate2
+(
+    const char * pMemoryName
+    , uint32_t header_len
+    , uint32_t item_count
+    , uint64_t total_size
+    , mode_t mode
 );
 
 /**

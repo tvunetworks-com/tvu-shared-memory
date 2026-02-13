@@ -23,6 +23,7 @@ Modifiers: Tony Guo (tonyguo@tvunetworks.com)
 //#include "TvuMemDbg.h"
 #include "TvuShmSharedCompactRingBuffer.h"
 #include "TvuCrossPlatformDefines.h"
+#include <sys/stat.h>
 #include "TvuMemUtils.h"
 #include "TvuLog.h"
 #include "TvuTimeUtils.h"
@@ -201,6 +202,11 @@ namespace tvushm
 
     bool SharedCompactRingBuffer::Create(const char*name,uint64_t fixedUserDataSize,uint64_t payloadBufferSize,uint64_t maxItemsNum)
     {
+        return Create(name, fixedUserDataSize, payloadBufferSize, maxItemsNum, S_IRUSR | S_IWUSR);
+    }
+
+    bool SharedCompactRingBuffer::Create(const char*name,uint64_t fixedUserDataSize,uint64_t payloadBufferSize,uint64_t maxItemsNum,mode_t mode)
+    {
         //estimate required shared memory size.
         if (maxItemsNum<=1 || payloadBufferSize==0)
         {
@@ -242,7 +248,7 @@ namespace tvushm
             payloadBufferSize;
 
         bool isNew=false;
-        if (!_sm.Create(name,expectedSharedMemorySize,isNew))
+        if (!_sm.Create(name,expectedSharedMemorySize,isNew,mode))
         {
             //failed to create shared memory;
             TVU_TAGGED_HEARTBEAT_WARN(
@@ -685,17 +691,19 @@ namespace tvushm
             return NULL;
         }
 
+        uint64 position=_nextReadingIndex;
         if (itemIndexChecksum!=nextFreeItemIndex+lastFilledItemIndex)
         {
             TVU_TAGGED_HEARTBEAT_WARN("virsmw",1,Log::GetDefaultLog(),Formatter("unexpected control checksum. ")
                 <<"write index: "<<nextFreeItemIndex
                 <<", last written index: "<<lastFilledItemIndex
                 <<", unexpected checksum: "<<itemIndexChecksum
-                <<", expected checksum: "<<nextFreeItemIndex+lastFilledItemIndex); /* control data was writing. */
+                <<", expected checksum: "<<nextFreeItemIndex+lastFilledItemIndex
+                <<", next reading index:" << position
+            ); /* control data was writing. */
             return NULL;
         }
 
-        uint64 position=_nextReadingIndex;
         if (position>=controlData.maxItemIndex)
         {
             position=lastFilledItemIndex;
@@ -1039,6 +1047,10 @@ namespace tvushm
 
     uint64_t SharedCompactRingBuffer::GetReadIndex(void) const
     {
+        if (_nextReadingIndex==-1)
+        {
+            return GetWriteIndex();
+        }
         return _nextReadingIndex;
     }
 

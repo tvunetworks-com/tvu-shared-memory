@@ -25,7 +25,7 @@ DEP_LIBSHMUTIL_PATH=$(PRJ_PATH)/../libshmUtil
 PRJ_OBJ=$(PRJ_PATH)/obj
 SUF_SRC=.cpp
 INCLUDS_PATHS+=-I$(PRJ_PATH)/include -I$(DEP_LIBSHMMEDIA_PROTO_PATH)/include -I$(DEP_LIBSHMMEDIA_PROTO_PATH)/src \
--I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include \
+-I$(DEP_LIBSHMUTIL_PATH)/include -I$(DEP_LIBSHMUTIL_PATH)/src/include -I$(DEP_LIBSHMUTIL_PATH)/src \
 -I$(PRJ_PATH)/../libsharememory/include \
 -I$(PRJ_PATH)/../libsharememory/src/include \
 -I$(PRJ_PATH)/../libtvufourcc/include

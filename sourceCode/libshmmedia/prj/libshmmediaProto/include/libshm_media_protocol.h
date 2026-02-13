@@ -391,6 +391,22 @@ int LibShmMediaItemParamInit(libshm_media_item_param_t *p, uint32_t structSize);
 _LIBSHMMEDIA_PROTO_DLL_
 void LibShmMediaItemParamRelease(libshm_media_item_param_t *p);
 
+/**
+ *  Functionality:
+ *      used to get the pts of the item frame.
+ *  Parameters:
+ *      @p[IN]    : item param object point
+ *      @type[IN]   : item frame type.
+ *                  'v' -- video
+ *                  'a' -- audio
+ *                  's' -- subtitle
+ *                  'd' -- meta data
+ *                  0   -- automtically find the first valid pts.
+ *  Reutrn:
+ *
+ */
+uint64_t LibShmMediaItemParamGetPts(libshm_media_item_param_t *p, const char type);
+
 
 /**
  *  Functionality:

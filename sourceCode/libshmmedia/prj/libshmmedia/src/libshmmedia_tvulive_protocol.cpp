@@ -364,8 +364,19 @@ static int tvulive_write_buffer_v2(/*IN*/const libtvumedia_tvulive_data_t *pinfo
         return -EINVAL;
     }
 
-    if((buffer_size < sizeof (libshmmedia_tvulive_data_internal_pro_v2_t) + pinfo->i_data)
-            || pinfo->i_data < 0)
+    int writedatalen = pinfo->i_data;
+
+    if (writedatalen < 0)
+    {
+        return -1;
+    }
+
+    if (!pinfo->p_data)
+    {
+        writedatalen = 0;
+    }
+
+    if((buffer_size < sizeof(libshmmedia_tvulive_data_internal_pro_v2_t) + writedatalen))
     {
         return -1; //buffer size is not enough.
     }

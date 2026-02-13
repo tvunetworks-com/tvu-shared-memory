@@ -33,6 +33,7 @@
 #   include <sys/shm.h>
 #   include <stdint.h>
 #   include <sys/time.h>
+#   include <sys/types.h>
 #   include <unistd.h>
 #   include <string>
 #endif
@@ -81,9 +82,11 @@ public:
     int InitCreateShm(uint32_t header_len, uint32_t item_count, uint32_t item_length);
     int InitOpenShm();
     uint8_t *CreateOrOpen(const char * pMemoryName, const uint32_t header_len, const uint32_t item_count, const size_t item_length);
+    uint8_t *CreateOrOpen(const char * pMemoryName, const uint32_t header_len, const uint32_t item_count, const size_t item_length, mode_t mode);
     uint8_t *Open(const char * pMemoryName);
     bool RingShmOpen(const char *name);
     bool RingShmCreate(const char *pMemoryName, uint32_t header_len, uint32_t isize, uint32_t item_count);
+    bool RingShmCreate(const char *pMemoryName, uint32_t header_len, uint32_t isize, uint32_t item_count, mode_t mode);
     int RingShmDestroy(bool flagCreate);
     int RingShmDestroyAndSleep(bool flagCreate);
     int FreeRingShm(bool flagCreate);

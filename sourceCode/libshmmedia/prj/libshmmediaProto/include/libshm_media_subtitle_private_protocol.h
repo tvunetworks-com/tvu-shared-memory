@@ -122,7 +122,7 @@ int LibshmmediaSubtitlePrivateProtoTuneTimestampOffSet(uint8_t *buffer, int buff
 
 
 #ifdef __cplusplus
-};
+}
 #endif
 
 

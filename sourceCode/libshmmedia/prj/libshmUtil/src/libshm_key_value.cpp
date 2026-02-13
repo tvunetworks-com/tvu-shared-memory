@@ -36,112 +36,112 @@ namespace tvushm {
     }
 
     Variant&KeyValParam::GetParameter(Key key)
-	{
-		return _paramMap[key];
-	}
+    {
+        return _paramMap[key];
+    }
 
-	const Variant&KeyValParam::GetParameter(Key key) const
-	{
-		KeyValMap::const_iterator paramIt=_paramMap.find(key);
-		if (paramIt==_paramMap.end())
-		{
-			return GetDefaultValue();
-		}
-		return paramIt->second;
-	}
+    const Variant&KeyValParam::GetParameter(Key key) const
+    {
+        KeyValMap::const_iterator paramIt=_paramMap.find(key);
+        if (paramIt==_paramMap.end())
+        {
+            return GetDefaultValue();
+        }
+        return paramIt->second;
+    }
 
     bool KeyValParam::HasParameter(Key key) const
-	{
-		return _paramMap.count(key)>0;
-	}
+    {
+        return _paramMap.count(key)>0;
+    }
 
     void KeyValParam::SetParameter(Key key,const Value&value)
-	{
-		_paramMap[key].AssignFrom(value);
-	}
+    {
+        _paramMap[key].AssignFrom(value);
+    }
 
-	void KeyValParam::SetParameter(Key key,Value&value)
-	{
-		_paramMap[key].AssignFrom(value);
-	}
+    void KeyValParam::SetParameter(Key key,Value&value)
+    {
+        _paramMap[key].AssignFrom(value);
+    }
 
     void KeyValParam::SetParameterByReference(Key key,Value&value)
-	{
-		_paramMap[key].AssignFromByReference(value);
-	}
+    {
+        _paramMap[key].AssignFromByReference(value);
+    }
 
     int KeyValParam::AppendToBuffer(BufferController_t &buffer,bool noPrepare)
     {
         //fields:
-		//number of key-values,
-		//key-value: key, value.
-		int totalBytesEncoded=0;
+        //number of key-values,
+        //key-value: key, value.
+        int totalBytesEncoded=0;
         int pos0 = BufferCtrlTellCurPos(&buffer);
-		{
-			if (!noPrepare)
-			{
-				int totalBytesNeeded=GetCompactBytesNumNeeded();
-				BufferCtrlAllocBuf(&buffer, totalBytesNeeded);
-			}
+        {
+            if (!noPrepare)
+            {
+                int totalBytesNeeded=GetCompactBytesNumNeeded();
+                BufferCtrlAllocBuf(&buffer, totalBytesNeeded);
+            }
 
-			FAILED_PUSH_DATA(BufferCtrlCompactEncodeValueU32(&buffer, _paramMap.size()));
+            FAILED_PUSH_DATA(BufferCtrlCompactEncodeValueU32(&buffer, _paramMap.size()));
 
-			for (KeyValMap::iterator paramIt=_paramMap.begin();paramIt!=_paramMap.end();paramIt++)
-			{
-				Key key=paramIt->first;
-				Value&value=paramIt->second;
+            for (KeyValMap::iterator paramIt=_paramMap.begin();paramIt!=_paramMap.end();paramIt++)
+            {
+                Key key=paramIt->first;
+                Value&value=paramIt->second;
                 FAILED_PUSH_DATA(BufferCtrlCompactEncodeValueU32(&buffer, key));
                 FAILED_PUSH_DATA(BufferCtrlCompactEncodeVariant(&buffer, value));
-			}
+            }
             int pos1 = BufferCtrlTellCurPos(&buffer);
-			totalBytesEncoded=pos1-pos0;
+            totalBytesEncoded=pos1-pos0;
             //BufferCtrlSeek(&buffer, pos0, SEEK_SET);
-		}
-		return totalBytesEncoded;
+        }
+        return totalBytesEncoded;
     }
 
     int KeyValParam::ExtractFromBuffer(BufferController_t&buffer,bool referenceOnly)
     {
         int totalBytesDecoded=0;
         int pos0 = BufferCtrlTellCurPos(&buffer);
-		{
-			uint32 extractedParamsNum=0;
-			{
-				int bytesDecoded=BufferCtrlCompactDecodeValueU32(&buffer, extractedParamsNum);
-				if (bytesDecoded<=0)
-				{
+        {
+            uint32 extractedParamsNum=0;
+            {
+                int bytesDecoded=BufferCtrlCompactDecodeValueU32(&buffer, extractedParamsNum);
+                if (bytesDecoded<=0)
+                {
                     BufferCtrlSeek(&buffer, pos0, SEEK_SET);
-					return bytesDecoded;
-				}
-			}
-			_paramMap.clear();
-			for (uint32 i=0;i<extractedParamsNum;i++)
-			{
-				Key extractedKey=0;
-				{
-					int bytesDecoded=BufferCtrlCompactDecodeValueU32(&buffer, extractedKey);
-					if (bytesDecoded<=0)
-					{
+                    return bytesDecoded;
+                }
+            }
+            _paramMap.clear();
+            for (uint32 i=0;i<extractedParamsNum;i++)
+            {
+                Key extractedKey=0;
+                {
+                    int bytesDecoded=BufferCtrlCompactDecodeValueU32(&buffer, extractedKey);
+                    if (bytesDecoded<=0)
+                    {
                         BufferCtrlSeek(&buffer, pos0, SEEK_SET);
-						return bytesDecoded;
-					}
-				}
+                        return bytesDecoded;
+                    }
+                }
 
-				Value&value=_paramMap[extractedKey];
-				{
-					int bytesDecoded=BufferCtrlCompactDecodeVariant(&buffer, value,referenceOnly);
-					if (bytesDecoded<=0)
-					{
+                Value&value=_paramMap[extractedKey];
+                {
+                    int bytesDecoded=BufferCtrlCompactDecodeVariant(&buffer, value,referenceOnly);
+                    if (bytesDecoded<=0)
+                    {
                         BufferCtrlSeek(&buffer, pos0, SEEK_SET);
-						return bytesDecoded;
-					}
-				}
-			}
+                        return bytesDecoded;
+                    }
+                }
+            }
             int pos1 = BufferCtrlTellCurPos(&buffer);
-			totalBytesDecoded=pos1-pos0;
+            totalBytesDecoded=pos1-pos0;
             //BufferCtrlSeek(&buffer, pos0, SEEK_SET);
-		}
-		return totalBytesDecoded;
+        }
+        return totalBytesDecoded;
     }
 
     void KeyValParam::SetParamAsU8(Key k, uint8_t v)

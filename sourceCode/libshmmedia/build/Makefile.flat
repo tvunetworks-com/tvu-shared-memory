@@ -6,7 +6,7 @@
 
 SUF_SRC=.cpp
 
-TARGET_OS=LINUX
+PLATFORM ?= linux64x
 #DEBUG=1
 
 #INTEL_QSV_LIBS=-lintelenc -lhevcenc -lmfx -lva -lva-drm -ldrm
@@ -20,15 +20,27 @@ FEC_SO_LIBS=-lFecStreamReceiverWrapper -lFecStreamTransmitterWrapper
 
 FEC_LIBS=$(FEC_SO_LIBS)
 
-ifeq ($(TARGET_OS), MINGW)
+ifeq ($(PLATFORM), MINGW)
     FLATFLAGS=TVU_MINGW
     D_FLATFLAGS=-DTVU_MINGW
     SUF_BIN=.exe
 endif
 
-ifeq ($(TARGET_OS), LINUX)
+ifeq ($(PLATFORM), LINUX)
     FLATFLAGS=TVU_LINUX
     D_FLATFLAGS=-DTVU_LINUX -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
+    SUF_BIN=
+endif
+
+ifeq ($(PLATFORM), linux64x)
+    FLATFLAGS=TVU_LINUX
+    D_FLATFLAGS=-std=c++11 -DTVU_LINUX -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
+    SUF_BIN=
+endif
+
+ifeq ($(PLATFORM), linux64a)
+    FLATFLAGS=TVU_LINUX
+    D_FLATFLAGS=-std=c++11 -DTVU_LINUX -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
     SUF_BIN=
 endif
 
@@ -48,6 +60,15 @@ STRIP=$(CROSS_TOOLS)strip
 PROFILE=-pg
 SYMBOLS=
 
+ifeq ($(ENABLE_GCOV), 1)
+
+COVERAGE_FLAGS := -fprofile-arcs -ftest-coverage
+COVERAGE_LDFLAGS := $(COVERAGE_FLAGS) -lgcov
+
+DEBUG=1
+
+endif
+
 ifeq ($(DEBUG), 1)
 PARAM_OF_OPT=-O0
 SYMBOLS=-g
@@ -56,8 +77,9 @@ PARAM_OF_OPT=-O3
 SYMBOLS=-g
 endif
 
-CFLAGS+= $(SYMBOLS) -fPIC $(D_FLATFLAGS) $(PARAM_OF_OPT) -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable #$(PROFILE)
-LDFLAGS+= $(SYMBOLS) $(PARAM_OF_OPT)  #$(PROFILE)
+CFLAGS+= $(SYMBOLS) -fPIC $(D_FLATFLAGS) $(PARAM_OF_OPT) $(COVERAGE_FLAGS) -Wall -Wno-unused-function -Wno-unused-variable -Wno-unused-but-set-variable #$(PROFILE)
+CXXFLAGS+=$(COVERAGE_FLAGS)
+LDFLAGS+= $(SYMBOLS) $(PARAM_OF_OPT) $(COVERAGE_LDFLAGS)
 MODULE_LIBS= #-lccmodule
 SHMMEDIA_LIBS= -lshmmedia -lshmmediaProto -lsharememory -lvaItemSharedMemory -lshmUtil -ltvuMediaInfo -lrt -lpthread -lz
 COMMON_LIBS= $(INTEL_QSV_LIBS) -lasi -ljson-c -lva-drm -lva-x11 -lva -lpthread -lz -lm -ldl -lrt -lstdc++ '-Wl,-rpath,$$ORIGIN'

@@ -24,15 +24,12 @@
 #   include <sys/shm.h>
 #   include <sys/time.h>
 #   include <unistd.h>
-#   include <string>
 #   include <sys/mman.h>
 #   include <sys/stat.h>
 #   include <fcntl.h>
 #endif
 #include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
-
+#include <ctype.h>
 
 #define DEBUG_COMMON_LOG(level, fmt, ...)        \
     do {\

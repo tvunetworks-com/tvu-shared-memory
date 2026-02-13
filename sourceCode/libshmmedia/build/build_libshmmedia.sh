@@ -23,7 +23,13 @@ fi
 CURRENT=$PWD
 VERSION=${2:-1.0.0}
 version_str=$VERSION
-PLAT_FORM=${3:-x86_64}
+PLAT_FORM=${3:-linux64x}
+
+if [[ -z "$PLATFORM" ]]; then
+    PLATFORM=$PLAT_FORM
+    export PLATFORM
+fi
+
 
 major=$(echo ${version_str} | awk 'BEGIN{FS=".";OFS=" "} {print $1}')
 minor=$(echo ${version_str} | awk 'BEGIN{FS=".";OFS=" "} {print $2}')
@@ -50,6 +56,7 @@ DEPEND_LIBSHMMEDIA=$BASE_PRJ_PATH/libshmmedia
 DEPEND_LIBTVUFOURCC=$BASE_PRJ_PATH/libtvufourcc
 #DEPEND_LIBTVUFOUNDATION=../dependlib/linux/libTvuFoundation
 DEPEND_READ_SHM_PATH=$BASE_PRJ_PATH/read_shm
+DEPEND_UNIT_TEST_PATH=$BASE_PRJ_PATH/unitTest
 
 if [ "_$1" != "_install" ];
 then
@@ -84,6 +91,9 @@ then
     make $* || exit 1
     popd
 
+    pushd $DEPEND_UNIT_TEST_PATH
+    make $* -j 4 || exit 1
+    popd
 else
 
 # install libshmmediawrap
@@ -117,6 +127,8 @@ else
     cp -f $DEPEND_LIBTVUFOURCC/include/*.h $CURRENT/libshmmediawrap/include
     cp -f $DEPEND_LIBTVUFOURCC/lib/*.a $CURRENT/libshmmediawrap/lib
     cp -rf $DEPEND_LIBTVUFOURCC/test $CURRENT/libshmmediawrap/test_libtvufourcc
+
+    cp -f $DEPEND_UNIT_TEST_PATH/unitTest $CURRENT/libshmmediawrap/bin
 
     rm -rf `find $CURRENT/libshmmediawrap -name .svn`
     echo "$VERSION" >> $CURRENT/libshmmediawrap/version

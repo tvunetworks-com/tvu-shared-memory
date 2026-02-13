@@ -12,6 +12,9 @@
  *********************************************************/
 #include "libshm_media_extension_protocol_internal.h"
 #include "libshm_media_protocol_log_internal.h"
+#include "libshm_media_protocol_internal.h"
+#include "libshm_key_value.h"
+#include "libshm_tvu_timestamp.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -181,6 +184,143 @@ static int _readExtendDataV1(libshmmedia_extend_data_info_t* pUserData, const ui
     return 0;
 }
 
+static int createKeyValue(tvushm::BufferController_t &buff, const libshmmedia_extend_data_info_t* p)
+{
+    if (!p)
+    {
+        return 0;
+    }
+    tvushm::KeyValParam op;
+    if (p->bHasColorPrimariesVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorPrimariesVal, p->uColorPrimariesVal_);
+    }
+
+    if (p->bHasColorTransferCharacteristicVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorTransferCharacteristicVal, p->uColorTransferCharacteristicVal_);
+    }
+
+    if (p->bHasColorSpaceVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorSpaceVal, p->uColorSpaceVal_);
+    }
+
+    if (p->bHasVideoFullRangeFlagVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeVideoFullRangeFlagVal, p->uVideoFullRangeFlagVal_);
+    }
+
+    if (p->bGotTvutimestamp)
+    {
+        op.SetParamAsU64(kLibShmMediaMetaKeyValueTypeTvutimestampVal, p->u64Tvutimestamp);
+    }
+
+    if (op.IsEmpty())
+    {
+        return 0;
+    }
+
+    op.AppendToBuffer(buff);
+    return tvushm::BufferCtrlGetBufLen(&buff);
+}
+
+static int estimateKeyValue(const libshmmedia_extend_data_info_t* p)
+{
+    if (!p)
+    {
+        return 0;
+    }
+    tvushm::KeyValParam op;
+    if (p->bHasColorPrimariesVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorPrimariesVal, p->uColorPrimariesVal_);
+    }
+
+    if (p->bHasColorTransferCharacteristicVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorTransferCharacteristicVal, p->uColorTransferCharacteristicVal_);
+    }
+
+    if (p->bHasColorSpaceVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeColorSpaceVal, p->uColorSpaceVal_);
+    }
+
+    if (p->bHasVideoFullRangeFlagVal_)
+    {
+        op.SetParamAsU32(kLibShmMediaMetaKeyValueTypeVideoFullRangeFlagVal, p->uVideoFullRangeFlagVal_);
+    }
+
+    if (p->bGotTvutimestamp)
+    {
+        op.SetParamAsU64(kLibShmMediaMetaKeyValueTypeTvutimestampVal, p->u64Tvutimestamp);
+    }
+
+    if (op.IsEmpty())
+    {
+        return 0;
+    }
+
+    return op.GetCompactBytesNumNeeded();
+}
+
+static int parseKeyValue(libshmmedia_extend_data_info_t* pExtendData, const uint8_t *pBuf, uint32_t nBuf)
+{
+    if (!nBuf || !pBuf)
+    {
+        return 0;
+    }
+
+    int ret = 0;
+    tvushm::KeyValParam params;
+    tvushm::BufferController_t buffer;
+    BufferCtrlAttachExternalReadBuffer(&buffer, pBuf, nBuf);
+
+    ret = params.ExtractFromBuffer(buffer, true);
+    if (ret <= 0)
+    {
+        return ret;
+    }
+
+    uint32_t key = kLibShmMediaMetaKeyValueTypeColorPrimariesVal;
+    if (params.HasParameter(key))
+    {
+        pExtendData->bHasColorPrimariesVal_ = true;
+        pExtendData->uColorPrimariesVal_ = params.GetParameter(key).GetAsUint32();
+    }
+
+    key = kLibShmMediaMetaKeyValueTypeColorTransferCharacteristicVal;
+    if (params.HasParameter(key))
+    {
+        pExtendData->bHasColorTransferCharacteristicVal_ = true;
+        pExtendData->uColorTransferCharacteristicVal_ = params.GetParameter(key).GetAsUint32();
+    }
+
+    key = kLibShmMediaMetaKeyValueTypeColorSpaceVal;
+    if (params.HasParameter(key))
+    {
+        pExtendData->bHasColorSpaceVal_ = true;
+        pExtendData->uColorSpaceVal_ = params.GetParameter(key).GetAsUint32();
+    }
+
+    key = kLibShmMediaMetaKeyValueTypeVideoFullRangeFlagVal;
+    if (params.HasParameter(key))
+    {
+        pExtendData->bHasVideoFullRangeFlagVal_ = true;
+        pExtendData->uVideoFullRangeFlagVal_ = params.GetParameter(key).GetAsUint32();
+    }
+
+    key = kLibShmMediaMetaKeyValueTypeTvutimestampVal;
+    if (params.HasParameter(key))
+    {
+        pExtendData->bGotTvutimestamp = true;
+        pExtendData->u64Tvutimestamp = params.GetParameter(key).GetAsUint64();
+    }
+
+    return ret;
+}
+
 static void libShmParserV2UserDataEntry(libshmmedia_extend_data_info_t* pExtendData, libshmmedia_extended_entry_data_t* v2Entry)
 {
     ELibShmMediaExtendDataTypeV2 veType = (ELibShmMediaExtendDataTypeV2)v2Entry->u_type;
@@ -327,11 +467,19 @@ static void libShmParserV2UserDataEntry(libshmmedia_extend_data_info_t* pExtendD
         case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_STL:
         case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_SUBVIEW:
         case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUB_SUBVIEWV1:
-        case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_PRIVATE_PROTOCOL_EXTENTION_STRUCTURE:
+        case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_SUBTITLE_PROTOCOL_EXTENTION_RESERVER:
         {
             pExtendData->u_subtitle_type = v2Entry->u_type;
             pExtendData->i_subtitle = v2Entry->u_len;
             pExtendData->p_subtitle = v2Entry->p_data;
+            break;
+        }
+        case LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_KEY_TYPE_VALUE_PROTO:
+        {
+            if (pExtendData && v2Entry->p_data && v2Entry->u_len)
+            {
+                parseKeyValue(pExtendData, v2Entry->p_data, v2Entry->u_len);
+            }
             break;
         }
         default:
@@ -427,6 +575,11 @@ int LibShmMeidaParseExtendData(libshmmedia_extend_data_info_t* pExtendData, cons
 EXIT:
     LibshmMediaExtDataDestroyHandle(&v2DataCtx);
     return ret;
+}
+
+int LibShmMeidaParseExtendDataV2(libshmmedia_extend_data_info_t* pExtendData, const uint8_t* pShmUserData, int dataSize)
+{
+    return LibShmMeidaParseExtendData(pExtendData, pShmUserData, dataSize, LIBSHM_MEDIA_TYPE_TVU_EXTEND_DATA_V2);
 }
 
 int LibShmMediaReadExtendData(libshmmedia_extend_data_info_t* pExtendData, const uint8_t* pShmUserData, int dataSize, int userDataType, libshmmedia_extended_data_context_t v2DataCtx)
@@ -589,6 +742,12 @@ int LibShmMediaEstimateExtendDataSize(/*IN*/const libshmmedia_extend_data_info_t
     }
 
     tmp_len = pExtendData->i_subtitle;
+    if (tmp_len > 0)
+    {
+        ret += 4 + 4 + tmp_len;
+    }
+
+    tmp_len = estimateKeyValue(pExtendData);
     if (tmp_len > 0)
     {
         ret += 4 + 4 + tmp_len;
@@ -913,6 +1072,24 @@ int libShmWriteExtendData(/*OUT*/uint8_t dataBuffer[], /*IN*/int bufferSize, /*I
             DEBUG_SHMMEDIA_PROTO_ERROR("LibshmMediaExtDataAddOneEntry failed,type = %d\n", newEntry.u_type);
             ret = -1;
             goto EXIT;
+        }
+    }
+
+    {
+        tvushm::BufferController_t buff;
+        int n = createKeyValue(buff, pExtendData);
+        if (n > 0)
+        {
+            newEntry.p_data = tvushm::BufferCtrlGetOrigPtr(&buff);
+            newEntry.u_len = n;
+            newEntry.u_type = LIBSHMMEDIA_EXTEND_DATA_TYPE_V2_KEY_TYPE_VALUE_PROTO;
+            ret = LibshmMediaExtDataAddOneEntry(v2WriteCtx, &newEntry, dataBuffer, bufferSize);
+            if (ret < 0)
+            {
+                DEBUG_SHMMEDIA_PROTO_ERROR("LibshmMediaExtDataAddOneEntry failed,type = %d\n", newEntry.u_type);
+                ret = -1;
+                goto EXIT;
+            }
         }
     }
 

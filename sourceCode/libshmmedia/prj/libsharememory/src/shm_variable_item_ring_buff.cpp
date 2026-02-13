@@ -29,6 +29,7 @@
 #endif
 #include <string.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include "shmhead.h"
 //#include "tvu_util.h"
 #include "shm_variable_item_ring_buff.h"
@@ -271,6 +272,11 @@ CTvuVariableItemBaseShm::~CTvuVariableItemBaseShm(void)
 
 uint8_t *CTvuVariableItemBaseShm::CreateOrOpen(const char *pMemoryName, const uint32_t header_len, const uint32_t item_count, const size_t shm_total_size)
 {
+    return CreateOrOpen(pMemoryName, header_len, item_count, shm_total_size, S_IRUSR | S_IWUSR);
+}
+
+uint8_t *CTvuVariableItemBaseShm::CreateOrOpen(const char *pMemoryName, const uint32_t header_len, const uint32_t item_count, const size_t shm_total_size, mode_t mode)
+{
     bool bshm = false;
     size_t head_size = 0;
     size_t isize = shm_total_size;
@@ -290,7 +296,7 @@ uint8_t *CTvuVariableItemBaseShm::CreateOrOpen(const char *pMemoryName, const ui
             goto EXIT;
         }
 
-        bshm = RingShmCreate(pMemoryName, header_len, isize, item_count);
+        bshm = RingShmCreate(pMemoryName, header_len, isize, item_count, mode);
 
         if (!bshm)
         {
@@ -409,12 +415,17 @@ bool CTvuVariableItemBaseShm::RingShmOpen(const char *name)
 
 bool CTvuVariableItemBaseShm::RingShmCreate(const char *pMemoryName, uint32_t header_len, uint32_t isize, uint32_t item_count)
 {
+    return RingShmCreate(pMemoryName, header_len, isize, item_count, S_IRUSR | S_IWUSR);
+}
+
+bool CTvuVariableItemBaseShm::RingShmCreate(const char *pMemoryName, uint32_t header_len, uint32_t isize, uint32_t item_count, mode_t mode)
+{
     bool b = false;
     tvushm::SharedCompactRingBuffer* ptr = (tvushm::SharedCompactRingBuffer*)m_pRingShm;
     if (!ptr)
         return b;
 
-    b = ptr->Create(pMemoryName, header_len, isize, item_count);
+    b = ptr->Create(pMemoryName, header_len, isize, item_count, mode);
     return b;
 }
 

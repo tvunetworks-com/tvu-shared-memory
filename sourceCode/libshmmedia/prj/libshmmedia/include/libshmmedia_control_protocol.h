@@ -397,7 +397,7 @@ int LibTvuMediaControlHandleWrite(/*IN*/const libtvumedia_control_handle_t h, /*
 **/
 _LIBSHMMEDIA_CONTROL_PRO_DLL_
 int LibTvuMediaControlHandleRead(/*OUT*/libtvumedia_control_handle_t h, /*IN*/ const uint8_t *src_buffer, /*IN*/const uint32_t src_buffer_len
-                                 , /*OUT*/libtvumedia_ctrlcmd_data_t **pp_param, /*OUT*/int *pcounts);
+                                 , /*OUT*/const libtvumedia_ctrlcmd_data_t **pp_param, /*OUT*/int *pcounts);
 
 
 /* endif LIBSHM_MEDIA_TYPE_CONTROL_DATA apis */

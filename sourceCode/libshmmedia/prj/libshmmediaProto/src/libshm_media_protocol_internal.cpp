@@ -1601,6 +1601,64 @@ void LibShmMediaItemParamRelease(libshm_media_item_param_t *p)
     return;
 }
 
+uint64_t LibShmMediaItemParamGetPts(libshm_media_item_param_t *p, const char type)
+{
+    if (!p)
+    {
+        return -1;
+    }
+
+    uint64_t pts = -1;
+    libshm_media_item_param_t &op = *p;
+    switch (type)
+    {
+    case 'v':
+    {
+        pts   = op.i64_vpts;
+        break;
+    }
+    case 'a':
+    {
+        pts   = op.i64_apts;
+        break;
+    }
+    case 's':
+    {
+        pts   = op.i64_spts;
+        break;
+    }
+    case 'd':
+    {
+        pts   = op.i64_userDataCT;
+        break;
+    }
+    case 0:
+    {
+        if (op.i_vLen > 0)
+        {
+            pts = op.i64_vpts;
+        }
+        else if (op.i_aLen > 0)
+        {
+            pts = op.i64_apts;
+        }
+        else if (op.i_sLen > 0)
+        {
+            pts = op.i64_spts;
+        }
+        else if (op.i_userDataLen > 0)
+        {
+            pts = op.i64_userDataCT;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+
+    return pts;
+}
+
 int LibShmMediaRawDataParamInit(libshmmedia_raw_data_param_t *p, uint32_t structSize)
 {
     if (!p)

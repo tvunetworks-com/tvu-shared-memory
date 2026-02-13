@@ -92,6 +92,25 @@ namespace tvushm {
         return Copy(o.GetBufAddr(), o.GetBufLen());
     }
 
+    int CacheBuffer::MultiCopy(const uint8_t *p, uint32_t n)
+    {
+        if (!p || !n)
+        {
+            return 0;
+        }
+
+        uint32_t curLen = GetBufLen();
+        uint32_t nx = curLen + n;
+
+        if (!Alloc(nx))
+        {
+            return -ENOMEM;
+        }
+        memcpy(_pBin+curLen, p, n);
+        SetBufLen(nx);
+        return n;
+    }
+
     void CacheBuffer::_init()
     {
         _nBin = 0;

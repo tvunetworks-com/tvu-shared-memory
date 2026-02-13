@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <malloc.h>
+#include <sys/types.h>
 #include "sharememory.h"
 #include "shm_variable_item_ring_buff.h"
 #include "libshm_media_struct.h"
@@ -171,6 +172,7 @@ public:
     }
 
     int CreateShmEntry(const char * pMemoryName, const uint32_t header_len, const uint32_t item_count, const uint64_t item_length);
+    int CreateShmEntry(const char * pMemoryName, const uint32_t header_len, const uint32_t item_count, const uint64_t item_length, mode_t mode);
     int OpenShmEntry(const char * pMemoryName, libshm_media_readcb_t cb, void *opaq);
     void SetCloseFlag(bool bclose);
     bool CheckCloseFlag();

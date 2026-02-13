@@ -23,6 +23,7 @@ History: Tony Guo on Oct 4, 2016: Created
 #include <string>
 #include <stdint.h>
 #include <algorithm>
+#include <sys/types.h>
 
 #if defined(TVU_WINDOWS)
 #include <Windows.h>
@@ -68,6 +69,7 @@ namespace tvushm
 	public:
 		bool Open(const char*name);
         bool Create(const char*name,uint64_t size,bool&isNew);
+        bool Create(const char*name,uint64_t size,bool&isNew,mode_t mode);
 		void Close();
 		void Destroy();
         unsigned char* GetBytes(void)const;

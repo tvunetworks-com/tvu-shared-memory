@@ -12,6 +12,11 @@ VISHM_M?=1
 
 INCLUDS_PATHS+=-I$(PRJ_PATH)/include -I$(PRJ_PATH)/../../include -Isrc/include
 
+PLATFORM ?= linux64x
+ifeq ($(PLATFORM), linux64a)
+	CFLAGS += -I../../3rdparty/zlib/release/linux64a/include
+endif
+
 PRJ_OBJ=$(PRJ_PATH)/obj
 SUF_SRC=.cpp
 CFLAGS+=$(DEF_MACROS) $(INCLUDS_PATHS)

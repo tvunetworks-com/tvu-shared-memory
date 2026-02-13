@@ -26,6 +26,7 @@ His
 #pragma once
 #include "TvuVaItemSharedMemory.h"
 #include <stdint.h>
+#include <sys/types.h>
 
 namespace tvushm
 {
@@ -37,6 +38,7 @@ namespace tvushm
 
         bool Open(const char*name);
         bool Create(const char*name,uint64_t fixedUserDataSize,uint64_t payloadBufferSize,uint64_t maxItemsNum);
+        bool Create(const char*name,uint64_t fixedUserDataSize,uint64_t payloadBufferSize,uint64_t maxItemsNum,mode_t mode);
 
         bool GetInfo(uint64_t* fixedUserDataSizePtr=NULL,uint64_t* payloadBufferSizePtr=NULL,uint64_t* maxItemsNumPtr=NULL);
 
