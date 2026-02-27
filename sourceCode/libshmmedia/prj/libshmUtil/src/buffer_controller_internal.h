@@ -15,7 +15,11 @@
 
 #include "buffer_controller.h"
 #include <string.h>
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include <errno.h>
 
 #define BUFF_BITS       10

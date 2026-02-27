@@ -54,7 +54,13 @@ typedef enum {
 
 #define LIBSHM_MEDIA_ITEM_CURRENT_VERSION   kLibShmMediaItemVerV4
 
+// ARM64 (Apple Silicon, ARM Linux, Android) requires stricter alignment
+// to avoid unaligned memory access issues. x86-64 can handle both.
+#ifdef __aarch64__
+#pragma pack(push, 4)
+#else
 #pragma pack(push, 1)
+#endif
 
 typedef struct {
     shm_construct_t head1;
