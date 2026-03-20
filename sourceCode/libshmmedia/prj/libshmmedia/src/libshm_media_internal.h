@@ -30,7 +30,11 @@
 #include "libshm_media_struct.h"
 #include "libshm_media_raw_data_opt.h"
 #include "libshm_media_audio_track_channel_proto_internal.h"
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 
 #define _LIBSHMMEDIA_PROTOCOL_APIS_DONE 1
 

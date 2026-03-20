@@ -24,7 +24,11 @@
 
 #include <stdint.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <stdlib.h>
+#else
 #include <malloc.h>
+#endif
 #include "sharememory.h"
 #include "shm_variable_item_ring_buff.h"
 #include "libshm_media_struct.h"

@@ -1,0 +1,37 @@
+# Build artifacts
+build/
+obj/
+*.o
+*.a
+*.so
+
+# Test executables
+unit/test_libshm_media
+unit/test_libshm_media_protocol
+integration/test_read_write_integration
+
+# Google Test
+gtest/
+googletest/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+Testing/
+
+# Test output
+*.log
+*.xml
+test_results/
+
+# Shared memory files (if any)
+/dev/shm/test_*
