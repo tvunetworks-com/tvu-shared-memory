@@ -29,8 +29,9 @@
  *  byte stream, not decoded or frame-structured media. Consumers must check
  *  i_userDataType before interpreting the payload as a transport stream.
  *
- *  Every item holds a whole number of 188-byte TS packets, 1316 bytes
- *  (7 x 188) by default, matching the standard UDP/SRT payload size.
+ *  Every item holds a whole number of 188-byte TS packets. The packet count per
+ *  item is not fixed by the protocol; 1316 bytes (7 x 188) is the suggested
+ *  value because it matches the standard UDP/SRT payload size.
  *
  *  See section 8.5 of the MediaMesh Shared Memory SDK document for the full
  *  contract, including the flow-control rules a consumer must observe.
@@ -97,10 +98,10 @@ static void usage(const char *argv0)
         "  -b <bps>     Pace output at this bitrate. 0 = as fast as input\n"
         "               arrives (correct for stdin/live). Default 0.\n"
         "  -l           Loop the input file forever (file input only).\n"
-        "  -r           Ragged mode: vary the item size so that item boundaries\n"
-        "               deliberately do NOT fall on TS packet boundaries. The\n"
-        "               protocol allows this; use it to verify that a consumer\n"
-        "               handles arbitrary item sizes correctly.\n"
+        "  -r           Vary the number of TS packets per item (1..7). Items stay\n"
+        "               whole packets, but the size changes from item to item.\n"
+        "               Use it to verify a consumer does not hardcode 1316 or\n"
+        "               any other fixed item size.\n"
         "  -v           Verbose: per-second progress on stderr.\n"
         "\n"
         "Examples:\n"
@@ -117,7 +118,7 @@ int main(int argc, char *argv[])
     int         item_count = DEFAULT_ITEM_COUNT;
     int64_t     bitrate    = 0;
     int         loop_input = 0;
-    int         ragged     = 0;
+    int         vary_packets = 0;
     int         verbose    = 0;
     int         ch;
 
@@ -129,7 +130,7 @@ int main(int argc, char *argv[])
         case 'c': item_count = atoi(optarg);           break;
         case 'b': bitrate    = strtoll(optarg, NULL, 10); break;
         case 'l': loop_input = 1;                      break;
-        case 'r': ragged     = 1;                      break;
+        case 'r': vary_packets = 1;                 break;
         case 'v': verbose    = 1;                      break;
         case 'h':
         default:  usage(argv[0]); return (ch == 'h') ? 0 : 1;
@@ -141,21 +142,16 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (item_size <= 0) {
-        fprintf(stderr, "error: item size must be positive\n");
-        return 1;
-    }
-
     /*
-     * The protocol does not require item sizes to be a multiple of 188, and a
-     * correct consumer handles any size. Emitting whole packets is simply
-     * good practice, so say something without refusing to run.
+     * Item size must be a whole number of TS packets. The packet count per item
+     * is free -- 1316 (7 x 188) is the suggested value because it matches the
+     * standard UDP/SRT payload, but any multiple of 188 is valid.
      */
-    if (item_size % TS_PACKET_SIZE != 0) {
+    if (item_size <= 0 || item_size % TS_PACKET_SIZE != 0) {
         fprintf(stderr,
-            "note: item size %d is not a multiple of %d. This is allowed -- "
-            "consumers must handle arbitrary item boundaries -- but whole "
-            "packets are recommended.\n", item_size, TS_PACKET_SIZE);
+            "error: item size %d must be a positive multiple of %d "
+            "(one TS packet)\n", item_size, TS_PACKET_SIZE);
+        return 1;
     }
 
     signal(SIGINT,  handle_sig);
@@ -227,7 +223,7 @@ int main(int argc, char *argv[])
     int      checked_sync  = 0;
     int      rc            = 0;
 
-    unsigned ragged_seq = 0;
+    unsigned vary_seq = 0;
 
     while (!g_exit) {
         size_t want = (size_t)item_size;
@@ -237,12 +233,18 @@ int main(int argc, char *argv[])
          * deliberately not multiples of 188, so consecutive items start at
          * different phases within a TS packet.
          */
-        if (ragged) {
-            /* Only ever shrink the request -- buf is sized for item_size. */
-            static const int deltas[] = { 177, 61, 23, 149, 95, 7 };
-            int d = deltas[ragged_seq++ % (sizeof(deltas) / sizeof(deltas[0]))];
+        /*
+         * Vary the number of TS packets per item. Every item is still a whole
+         * number of packets -- what changes is how many. Use this to verify a
+         * consumer does not hardcode 1316 or any other fixed item size.
+         */
+        if (vary_packets) {
+            static const int counts[] = { 1, 7, 3, 2, 5, 4 };
+            int n = counts[vary_seq++ % (sizeof(counts) / sizeof(counts[0]))];
+            int max_n = item_size / TS_PACKET_SIZE;
 
-            if ((int)want - d > 0) want = (size_t)((int)want - d);
+            if (n > max_n) n = max_n;
+            want = (size_t)(n * TS_PACKET_SIZE);
         }
 
         size_t got = fread(buf, 1, want, fin);
@@ -256,10 +258,14 @@ int main(int argc, char *argv[])
         }
 
         /*
-         * Whatever was read is sent as-is. Truncating to a packet boundary
-         * would drop bytes out of the middle of the stream, which a consumer
-         * would correctly report as a continuity error.
+         * Send only whole packets. A short tail at end of file is dropped
+         * rather than sent, so a consumer never receives a partial packet.
          */
+        if (got % TS_PACKET_SIZE != 0) {
+            size_t whole = got - (got % TS_PACKET_SIZE);
+            if (whole == 0) break;
+            got = whole;
+        }
 
         /* One-time sanity check that the input really is a transport stream. */
         if (!checked_sync) {

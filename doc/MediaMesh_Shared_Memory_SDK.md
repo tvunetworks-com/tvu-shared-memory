@@ -991,30 +991,29 @@ The URL is interpreted at the application layer; the library has no knowledge of
 it. An application integrating directly against the SDK opens the segment by
 name and filters on the type tag.
 
-#### 8.5.3 Item size and alignment
+#### 8.5.3 Item size
 
-**The protocol places no constraint on item size.** An item may carry any number
-of bytes, and item boundaries are **not** guaranteed to fall on TS packet
-boundaries.
+**An item must contain a whole number of 188-byte TS packets.** Item size is
+always a multiple of 188, so item boundaries fall on TS packet boundaries and a
+packet is never split across items.
 
-Consequences for a consumer — these are requirements, not suggestions:
+**The number of packets per item is not fixed.** 1316 bytes (7 × 188) is the
+suggested value because it matches the standard UDP/SRT payload, but any
+multiple of 188 is valid, and the size may vary from item to item. A consumer
+must therefore:
 
-- Treat the payload as a **continuous byte stream**, not as a sequence of
-  packet-aligned blocks.
-- **Buffer across items.** A 188-byte packet may be split across two or more
-  items.
-- **Sync on the `0x47` sync byte** rather than assuming the first byte of an item
-  starts a packet. Confirm a candidate boundary by checking for another `0x47`
-  188 bytes later, since payload bytes can also be `0x47`.
+- Take the packet count from `i_userDataLen`, never assume 1316 or any other
+  fixed size.
+- Tolerate the size changing between items.
 
-A producer is *encouraged* to emit whole packets — 1316 bytes (7 × 188) matches
-the standard UDP/SRT payload and is a sensible default — but a consumer must not
-depend on it.
+Because every item starts on a packet boundary, a consumer may index packets at
+188-byte offsets within an item. Locking onto the `0x47` sync byte instead is
+more defensive and costs little — `mpegts_read_sample_code` does that, which is
+why it also recovers if a producer ever violates the rule.
 
-`mpegts_write_sample_code` has a `-r` option that deliberately varies the item
-size so boundaries fall at different phases within a packet. Use it to verify a
-consumer implementation: a correct reader reports zero resync events and zero
-continuity errors in that mode, exactly as it does with aligned items.
+`mpegts_write_sample_code` has a `-r` option that varies the packet count per
+item between 1 and 7 while keeping every item a whole number of packets. Use it
+to verify that a consumer does not hardcode an item size.
 
 #### 8.5.4 Flow control
 
@@ -1062,9 +1061,8 @@ uint64_t lag     = (windex + modulus - rindex) % modulus;
 
 `mpegts_write_sample_code.cpp` and `mpegts_read_sample_code.cpp` in the sample
 directory are complete, buildable reference implementations of both sides. The
-reader parses the payload as a byte stream with sync-byte locking, so it handles
-arbitrary item sizes; it also validates TS structure and reports reader-side loss
-as described above. `make_test_ts.py` generates a synthetic TS with strictly
+reader handles any item size, validates TS structure, and reports reader-side
+loss as described above. `make_test_ts.py` generates a synthetic TS with strictly
 correct continuity counters for verifying an integration before using real
 content.
 

@@ -94,14 +94,16 @@ static int shm_log_cb(int level, const char *fmt, va_list ap)
 /* ---------------------------------------------------------------- TS state */
 
 /*
- * The protocol places no constraint on item size, so item boundaries are NOT
- * guaranteed to fall on TS packet boundaries. The payload must be treated as a
- * continuous byte stream: leftover bytes are carried across items, and the
- * parser locks onto the 0x47 sync byte rather than assuming alignment.
+ * Item size is a whole number of 188-byte TS packets, but the packet count per
+ * item is NOT fixed -- a consumer must not hardcode 1316 or any other size.
  *
- * `carry` holds the partial packet left over from the previous item. Two
- * packets' worth of room is enough: one for the incomplete packet, one for the
- * window the resync scan needs.
+ * This parser therefore treats the payload as a byte stream and locks onto the
+ * 0x47 sync byte instead of indexing at fixed offsets. That also makes it
+ * tolerant of a producer that violates the framing rule and splits a packet
+ * across items, which is reported separately as `unaligned items`.
+ *
+ * `carry` holds whatever is left over between feeds. Two packets' worth of room
+ * is enough: one for an incomplete packet, one for the resync scan window.
  */
 typedef struct {
     int64_t  packets;
@@ -180,8 +182,8 @@ static long ts_find_sync(const uint8_t *buf, size_t len)
 }
 
 /*
- * Feed one item's payload into the parser. Handles arbitrary item sizes and
- * arbitrary alignment.
+ * Feed one item's payload into the parser. The item size is whatever the
+ * producer chose, so nothing here assumes a fixed length.
  */
 static void ts_feed(ts_state_t *st, const uint8_t *data, size_t len)
 {
@@ -485,12 +487,18 @@ int main(int argc, char *argv[])
         bytes_read += (int64_t)len;
 
         /*
-         * Purely informational. The protocol does not require item sizes to be
-         * a multiple of 188, and the parser handles arbitrary sizes -- this
-         * only tells you what shape the producer happens to emit.
+         * Item size must be a whole number of TS packets. The parser below
+         * recovers from a violation anyway, but it is a producer bug and worth
+         * reporting rather than silently absorbing.
          */
         if (len % TS_PACKET_SIZE != 0) {
             unaligned++;
+            if (unaligned == 1) {
+                fprintf(stderr,
+                    "reader: warning: item length %zu is not a multiple of %d. "
+                    "The producer is violating the framing rule; TS packets are "
+                    "being split across items.\n", len, TS_PACKET_SIZE);
+            }
         }
 
         /*
@@ -546,7 +554,7 @@ int main(int argc, char *argv[])
         "  reads while lapped: %lld   <- data definitely lost here\n"
         "  reads near-lapped : %lld\n"
         "  non-TS items      : %lld\n"
-        "  unaligned items   : %lld   (allowed, informational)\n",
+        "  unaligned items   : %lld   <- non-zero means a producer bug\n",
         shm_name,
         (double)elapsed / 1000.0,
         (long long)items_read,

@@ -25,9 +25,9 @@ LIBSHM_MEDIA_TYPE_MPEG_TS_DATA ('TMTS', 0x53544D54). See section 8.5 of
 doc/MediaMesh_Shared_Memory_SDK.md for the full contract.
 
   mpegts_write_sample_code    Feed a TS file or stdin into a segment, with
-                              optional constant-bitrate pacing. -r emits
-                              deliberately unaligned item sizes, which the
-                              protocol permits, to test a consumer.
+                              optional constant-bitrate pacing. -r varies the
+                              packet count per item (still whole packets) to
+                              check that a consumer does not hardcode a size.
   mpegts_read_sample_code     Attach to a segment, validate TS structure (sync
                               bytes, PIDs, continuity counters), detect
                               reader-side data loss, and optionally write the
