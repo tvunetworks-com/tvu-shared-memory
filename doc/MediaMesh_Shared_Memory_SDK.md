@@ -991,12 +991,30 @@ The URL is interpreted at the application layer; the library has no knowledge of
 it. An application integrating directly against the SDK opens the segment by
 name and filters on the type tag.
 
-#### 8.5.3 Framing
+#### 8.5.3 Item size and alignment
 
-Every item must hold a whole number of 188-byte TS packets. **1316 bytes
-(7 × 188) is recommended**, matching the standard UDP/SRT payload size. The
-library does not enforce this; it is a convention that producers and consumers
-of `tvutsshm` segments are expected to honour.
+**The protocol places no constraint on item size.** An item may carry any number
+of bytes, and item boundaries are **not** guaranteed to fall on TS packet
+boundaries.
+
+Consequences for a consumer — these are requirements, not suggestions:
+
+- Treat the payload as a **continuous byte stream**, not as a sequence of
+  packet-aligned blocks.
+- **Buffer across items.** A 188-byte packet may be split across two or more
+  items.
+- **Sync on the `0x47` sync byte** rather than assuming the first byte of an item
+  starts a packet. Confirm a candidate boundary by checking for another `0x47`
+  188 bytes later, since payload bytes can also be `0x47`.
+
+A producer is *encouraged* to emit whole packets — 1316 bytes (7 × 188) matches
+the standard UDP/SRT payload and is a sensible default — but a consumer must not
+depend on it.
+
+`mpegts_write_sample_code` has a `-r` option that deliberately varies the item
+size so boundaries fall at different phases within a packet. Use it to verify a
+consumer implementation: a correct reader reports zero resync events and zero
+continuity errors in that mode, exactly as it does with aligned items.
 
 #### 8.5.4 Flow control
 
@@ -1044,9 +1062,11 @@ uint64_t lag     = (windex + modulus - rindex) % modulus;
 
 `mpegts_write_sample_code.cpp` and `mpegts_read_sample_code.cpp` in the sample
 directory are complete, buildable reference implementations of both sides. The
-reader also validates TS structure and reports reader-side loss as described
-above. `make_test_ts.py` generates a synthetic TS with strictly correct
-continuity counters for verifying an integration before using real content.
+reader parses the payload as a byte stream with sync-byte locking, so it handles
+arbitrary item sizes; it also validates TS structure and reports reader-side loss
+as described above. `make_test_ts.py` generates a synthetic TS with strictly
+correct continuity counters for verifying an integration before using real
+content.
 
 ---
 

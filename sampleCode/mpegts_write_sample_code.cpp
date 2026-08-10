@@ -97,6 +97,10 @@ static void usage(const char *argv0)
         "  -b <bps>     Pace output at this bitrate. 0 = as fast as input\n"
         "               arrives (correct for stdin/live). Default 0.\n"
         "  -l           Loop the input file forever (file input only).\n"
+        "  -r           Ragged mode: vary the item size so that item boundaries\n"
+        "               deliberately do NOT fall on TS packet boundaries. The\n"
+        "               protocol allows this; use it to verify that a consumer\n"
+        "               handles arbitrary item sizes correctly.\n"
         "  -v           Verbose: per-second progress on stderr.\n"
         "\n"
         "Examples:\n"
@@ -113,10 +117,11 @@ int main(int argc, char *argv[])
     int         item_count = DEFAULT_ITEM_COUNT;
     int64_t     bitrate    = 0;
     int         loop_input = 0;
+    int         ragged     = 0;
     int         verbose    = 0;
     int         ch;
 
-    while ((ch = getopt(argc, argv, "n:i:s:c:b:lvh")) != -1) {
+    while ((ch = getopt(argc, argv, "n:i:s:c:b:lrvh")) != -1) {
         switch (ch) {
         case 'n': shm_name   = optarg;                 break;
         case 'i': input_path = optarg;                 break;
@@ -124,6 +129,7 @@ int main(int argc, char *argv[])
         case 'c': item_count = atoi(optarg);           break;
         case 'b': bitrate    = strtoll(optarg, NULL, 10); break;
         case 'l': loop_input = 1;                      break;
+        case 'r': ragged     = 1;                      break;
         case 'v': verbose    = 1;                      break;
         case 'h':
         default:  usage(argv[0]); return (ch == 'h') ? 0 : 1;
@@ -135,11 +141,21 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* The library does not enforce this -- the TS framing convention does. */
-    if (item_size <= 0 || item_size % TS_PACKET_SIZE != 0) {
-        fprintf(stderr, "error: item size %d is not a multiple of %d\n",
-                item_size, TS_PACKET_SIZE);
+    if (item_size <= 0) {
+        fprintf(stderr, "error: item size must be positive\n");
         return 1;
+    }
+
+    /*
+     * The protocol does not require item sizes to be a multiple of 188, and a
+     * correct consumer handles any size. Emitting whole packets is simply
+     * good practice, so say something without refusing to run.
+     */
+    if (item_size % TS_PACKET_SIZE != 0) {
+        fprintf(stderr,
+            "note: item size %d is not a multiple of %d. This is allowed -- "
+            "consumers must handle arbitrary item boundaries -- but whole "
+            "packets are recommended.\n", item_size, TS_PACKET_SIZE);
     }
 
     signal(SIGINT,  handle_sig);
@@ -211,8 +227,25 @@ int main(int argc, char *argv[])
     int      checked_sync  = 0;
     int      rc            = 0;
 
+    unsigned ragged_seq = 0;
+
     while (!g_exit) {
-        size_t got = fread(buf, 1, (size_t)item_size, fin);
+        size_t want = (size_t)item_size;
+
+        /*
+         * Ragged mode walks the request size through a set of offsets that are
+         * deliberately not multiples of 188, so consecutive items start at
+         * different phases within a TS packet.
+         */
+        if (ragged) {
+            /* Only ever shrink the request -- buf is sized for item_size. */
+            static const int deltas[] = { 177, 61, 23, 149, 95, 7 };
+            int d = deltas[ragged_seq++ % (sizeof(deltas) / sizeof(deltas[0]))];
+
+            if ((int)want - d > 0) want = (size_t)((int)want - d);
+        }
+
+        size_t got = fread(buf, 1, want, fin);
 
         if (got == 0) {
             if (loop_input && !from_stdin) {
@@ -223,14 +256,10 @@ int main(int argc, char *argv[])
         }
 
         /*
-         * Only whole TS packets go into an item. A short tail at end-of-file is
-         * dropped rather than committed, so a reader never sees a partial packet.
+         * Whatever was read is sent as-is. Truncating to a packet boundary
+         * would drop bytes out of the middle of the stream, which a consumer
+         * would correctly report as a continuity error.
          */
-        if (got % TS_PACKET_SIZE != 0) {
-            size_t whole = got - (got % TS_PACKET_SIZE);
-            if (whole == 0) break;
-            got = whole;
-        }
 
         /* One-time sanity check that the input really is a transport stream. */
         if (!checked_sync) {

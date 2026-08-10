@@ -81,8 +81,13 @@ LibViShmMediaSendData(h, &ohp, &ohi);      // read side: LibViShmMediaPollReadDa
 ```
 
 Video/audio/subtitle fields stay empty. Consumers must check `i_userDataType`
-before treating the payload as TS. Items hold a whole number of 188-byte TS
-packets; 1316 (7 × 188) is the convention.
+before treating the payload as TS.
+
+**Item size is unconstrained by the protocol** and boundaries are not guaranteed
+to fall on TS packet boundaries. A consumer must buffer across items and sync on
+`0x47`; it must not assume packet alignment. Producers are encouraged, not
+required, to emit whole packets (1316 = 7 × 188 matches the UDP/SRT payload).
+`mpegts_write_sample_code -r` deliberately emits unaligned items to test this.
 
 The `tvutsshm://0?name=<name>` URL is parsed by the **application**, never by the
 library. Code linking against the SDK opens a segment by name.

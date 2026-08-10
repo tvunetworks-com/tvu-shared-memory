@@ -93,13 +93,26 @@ static int shm_log_cb(int level, const char *fmt, va_list ap)
 
 /* ---------------------------------------------------------------- TS state */
 
+/*
+ * The protocol places no constraint on item size, so item boundaries are NOT
+ * guaranteed to fall on TS packet boundaries. The payload must be treated as a
+ * continuous byte stream: leftover bytes are carried across items, and the
+ * parser locks onto the 0x47 sync byte rather than assuming alignment.
+ *
+ * `carry` holds the partial packet left over from the previous item. Two
+ * packets' worth of room is enough: one for the incomplete packet, one for the
+ * window the resync scan needs.
+ */
 typedef struct {
     int64_t  packets;
-    int64_t  sync_errors;
+    int64_t  sync_errors;               /* resync events, not per-packet */
     int64_t  cc_errors;
     int64_t  null_packets;
+    int      synced;
     int8_t   last_cc[TS_MAX_PID];       /* -1 = not seen yet */
     uint8_t  pid_seen[TS_MAX_PID];
+    uint8_t  carry[TS_PACKET_SIZE * 2];
+    size_t   carry_len;
 } ts_state_t;
 
 static void ts_state_init(ts_state_t *st)
@@ -108,62 +121,121 @@ static void ts_state_init(ts_state_t *st)
     memset(st->last_cc, -1, sizeof(st->last_cc));
 }
 
-/*
- * Validate one item's worth of TS packets.
- * Returns the number of continuity-counter errors found in this item.
- */
-static int ts_validate_item(ts_state_t *st, const uint8_t *data, size_t len)
+/* Validate one complete 188-byte packet, already known to start with 0x47. */
+static void ts_validate_packet(ts_state_t *st, const uint8_t *p)
 {
-    int errors = 0;
+    st->packets++;
 
-    for (size_t off = 0; off + TS_PACKET_SIZE <= len; off += TS_PACKET_SIZE) {
-        const uint8_t *p = data + off;
+    uint16_t pid = (uint16_t)(((p[1] & 0x1F) << 8) | p[2]);
 
-        if (p[0] != TS_SYNC_BYTE) {
-            st->sync_errors++;
-            continue;                       /* not packet aligned, skip */
-        }
-
-        st->packets++;
-
-        uint16_t pid = (uint16_t)(((p[1] & 0x1F) << 8) | p[2]);
-
-        if (pid == TS_NULL_PID) {           /* stuffing, no CC continuity */
-            st->null_packets++;
-            continue;
-        }
-
-        st->pid_seen[pid] = 1;
-
-        uint8_t afc = (uint8_t)((p[3] >> 4) & 0x03);
-        uint8_t cc  = (uint8_t)(p[3] & 0x0F);
-
-        /*
-         * The continuity counter only advances on packets that carry a payload
-         * (afc 1 = payload only, 3 = adaptation field + payload). For afc 0 and
-         * 2 the counter must stay unchanged.
-         */
-        int has_payload = (afc == 1 || afc == 3);
-        int8_t  prev    = st->last_cc[pid];
-
-        if (prev >= 0) {
-            uint8_t expected = has_payload
-                             ? (uint8_t)((prev + 1) & 0x0F)
-                             : (uint8_t)prev;
-
-            /* A single duplicated packet is legal and repeats the counter. */
-            int duplicate_ok = has_payload && (cc == (uint8_t)prev);
-
-            if (cc != expected && !duplicate_ok) {
-                st->cc_errors++;
-                errors++;
-            }
-        }
-
-        st->last_cc[pid] = (int8_t)cc;
+    if (pid == TS_NULL_PID) {               /* stuffing, no CC continuity */
+        st->null_packets++;
+        return;
     }
 
-    return errors;
+    st->pid_seen[pid] = 1;
+
+    uint8_t afc = (uint8_t)((p[3] >> 4) & 0x03);
+    uint8_t cc  = (uint8_t)(p[3] & 0x0F);
+
+    /*
+     * The continuity counter only advances on packets that carry a payload
+     * (afc 1 = payload only, 3 = adaptation field + payload). For afc 0 and 2
+     * the counter must stay unchanged.
+     */
+    int    has_payload = (afc == 1 || afc == 3);
+    int8_t prev        = st->last_cc[pid];
+
+    if (prev >= 0) {
+        uint8_t expected = has_payload
+                         ? (uint8_t)((prev + 1) & 0x0F)
+                         : (uint8_t)prev;
+
+        /* A single duplicated packet is legal and repeats the counter. */
+        int duplicate_ok = has_payload && (cc == (uint8_t)prev);
+
+        if (cc != expected && !duplicate_ok) {
+            st->cc_errors++;
+        }
+    }
+
+    st->last_cc[pid] = (int8_t)cc;
+}
+
+/*
+ * Find a packet boundary in buf. A candidate 0x47 is accepted only if a second
+ * 0x47 appears exactly 188 bytes later, which rejects payload bytes that happen
+ * to be 0x47. Returns the offset, or -1 if no boundary is confirmable yet.
+ */
+static long ts_find_sync(const uint8_t *buf, size_t len)
+{
+    if (len < TS_PACKET_SIZE * 2) return -1;
+
+    for (size_t i = 0; i + TS_PACKET_SIZE < len; i++) {
+        if (buf[i] == TS_SYNC_BYTE && buf[i + TS_PACKET_SIZE] == TS_SYNC_BYTE) {
+            return (long)i;
+        }
+    }
+    return -1;
+}
+
+/*
+ * Feed one item's payload into the parser. Handles arbitrary item sizes and
+ * arbitrary alignment.
+ */
+static void ts_feed(ts_state_t *st, const uint8_t *data, size_t len)
+{
+    while (len > 0) {
+        /* Top the carry buffer up from the incoming item. */
+        size_t room = sizeof(st->carry) - st->carry_len;
+        size_t take = (len < room) ? len : room;
+
+        memcpy(st->carry + st->carry_len, data, take);
+        st->carry_len += take;
+        data          += take;
+        len           -= take;
+
+        /* Consume as many whole packets as the carry buffer now holds. */
+        for (;;) {
+            if (!st->synced) {
+                long off = ts_find_sync(st->carry, st->carry_len);
+
+                if (off < 0) {
+                    /*
+                     * No boundary confirmable yet. Keep the tail so a boundary
+                     * spanning this and the next item is still found.
+                     */
+                    if (st->carry_len > TS_PACKET_SIZE * 2 - 1) {
+                        size_t keep = TS_PACKET_SIZE * 2 - 1;
+                        memmove(st->carry, st->carry + st->carry_len - keep, keep);
+                        st->carry_len = keep;
+                    }
+                    break;
+                }
+
+                if (off > 0) {              /* discard bytes before the boundary */
+                    memmove(st->carry, st->carry + off, st->carry_len - (size_t)off);
+                    st->carry_len -= (size_t)off;
+                }
+                st->synced = 1;
+
+                /* The very first lock is normal; later ones mean lost sync. */
+                if (st->packets > 0) st->sync_errors++;
+            }
+
+            if (st->carry_len < TS_PACKET_SIZE) break;
+
+            if (st->carry[0] != TS_SYNC_BYTE) {
+                st->synced = 0;             /* lost alignment, rescan */
+                continue;
+            }
+
+            ts_validate_packet(st, st->carry);
+
+            st->carry_len -= TS_PACKET_SIZE;
+            memmove(st->carry, st->carry + TS_PACKET_SIZE, st->carry_len);
+        }
+    }
 }
 
 static int ts_count_pids(const ts_state_t *st)
@@ -296,7 +368,7 @@ int main(int argc, char *argv[])
     int64_t items_read   = 0;
     int64_t underruns    = 0;
     int64_t items_lost   = 0;
-    int64_t misaligned   = 0;
+    int64_t unaligned    = 0;
     uint64_t prev_rindex = LibViShmMediaGetReadIndex(h);
     uint64_t max_lag     = 0;
     int64_t  lapped      = 0;
@@ -412,14 +484,13 @@ int main(int argc, char *argv[])
         items_read++;
         bytes_read += (int64_t)len;
 
+        /*
+         * Purely informational. The protocol does not require item sizes to be
+         * a multiple of 188, and the parser handles arbitrary sizes -- this
+         * only tells you what shape the producer happens to emit.
+         */
         if (len % TS_PACKET_SIZE != 0) {
-            misaligned++;
-            if (misaligned == 1) {
-                fprintf(stderr,
-                    "reader: warning: item length %zu is not a multiple of %d. "
-                    "The producer is not honouring the TS framing convention.\n",
-                    len, TS_PACKET_SIZE);
-            }
+            unaligned++;
         }
 
         /*
@@ -435,7 +506,7 @@ int main(int argc, char *argv[])
         }
 
         if (validate) {
-            ts_validate_item(&st, data, len);
+            ts_feed(&st, data, len);
         }
 
         int64_t t = now_ms();
@@ -475,7 +546,7 @@ int main(int argc, char *argv[])
         "  reads while lapped: %lld   <- data definitely lost here\n"
         "  reads near-lapped : %lld\n"
         "  non-TS items      : %lld\n"
-        "  misaligned items  : %lld\n",
+        "  unaligned items   : %lld   (allowed, informational)\n",
         shm_name,
         (double)elapsed / 1000.0,
         (long long)items_read,
@@ -486,14 +557,14 @@ int main(int argc, char *argv[])
         (long long)lapped,
         (long long)near_lapped,
         (long long)other_type,
-        (long long)misaligned);
+        (long long)unaligned);
 
     if (validate) {
         fprintf(stderr,
             "  TS packets        : %lld\n"
             "  distinct PIDs     : %d\n"
             "  null packets      : %lld\n"
-            "  sync byte errors  : %lld\n"
+            "  resync events     : %lld\n"
             "  continuity errors : %lld%s\n",
             (long long)st.packets,
             ts_count_pids(&st),
