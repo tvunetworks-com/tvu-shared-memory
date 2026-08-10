@@ -1,4 +1,54 @@
 The sample is from the test directory of tar package release.
 Here is just for quick reference.
 
+Build (from within an extracted release package, so that ../include and ../lib
+resolve):
 
+    make
+
+Each .cpp builds into its own executable.
+
+--------------------------------------------------------------------------
+Media samples (video / audio / subtitle / extension data)
+--------------------------------------------------------------------------
+
+  write_sample_code       Writer example.
+  read_sample_code        Reader example.
+
+--------------------------------------------------------------------------
+MPEG-TS samples (tvutsshm)
+--------------------------------------------------------------------------
+
+Transport of a muxed MPEG transport stream over shared memory. TS bytes are
+carried in the user data field of each item, tagged with
+LIBSHM_MEDIA_TYPE_MPEG_TS_DATA ('TMTS', 0x53544D54). See section 8.5 of
+doc/MediaMesh_Shared_Memory_SDK.md for the full contract.
+
+  mpegts_write_sample_code    Feed a TS file or stdin into a segment, with
+                              optional constant-bitrate pacing.
+  mpegts_read_sample_code     Attach to a segment, validate TS structure (sync
+                              bytes, PIDs, continuity counters), detect
+                              reader-side data loss, and optionally write the
+                              recovered stream to a file or stdout.
+  make_test_ts.py             Generate a synthetic TS with strictly correct
+                              continuity counters, for proving out an
+                              integration before using real content.
+
+Quick round trip:
+
+    ./make_test_ts.py sample.ts
+    ./mpegts_read_sample_code  -n LiveTransmit -v          # terminal 1
+    ./mpegts_write_sample_code -n LiveTransmit -i sample.ts -b 8000000 -l
+
+Pipe the recovered stream into other tooling:
+
+    ./mpegts_read_sample_code -n LiveTransmit -o - -q | ffprobe -
+
+Run either binary with -h for the full option list.
+
+IMPORTANT: the writer never blocks. A reader that consumes slower than the
+writer produces will silently lose data, and that loss looks exactly like
+continuity counter errors in the recovered stream. mpegts_read_sample_code
+reports the read/write index lag so reader-side loss can be told apart from
+genuine stream defects. Keep your read loop thin and do analysis on another
+thread.

@@ -15,6 +15,9 @@ The SDK provides two families of APIs:
 - **LibShm** — Constant-sized item ring buffer. Each item slot has the same fixed size.
 - **LibViShm** — Variable-sized item ring buffer. Items can have different sizes, suitable for compressed streams.
 
+Beyond decoded and frame-structured media, the SDK can also carry a muxed MPEG
+transport stream as an opaque byte pipe — see [8.5](#85-mpeg-ts-over-shared-memory-tvutsshm).
+
 ## 2. Getting Started
 
 ### 2.1 Release Package Contents
@@ -34,18 +37,33 @@ The SDK provides two families of APIs:
 ├── lib/
 │   └── libshmmediawrap.so.2.1.230     # Shared library
 └── test/
-    ├── write_sample_code.cpp  # Writer example
-    ├── read_sample_code.cpp   # Reader example
+    ├── write_sample_code.cpp          # Writer example
+    ├── read_sample_code.cpp           # Reader example
+    ├── mpegts_write_sample_code.cpp   # MPEG-TS writer example (see 8.5)
+    ├── mpegts_read_sample_code.cpp    # MPEG-TS reader + validator (see 8.5)
+    ├── make_test_ts.py                # Synthetic TS generator for testing
     └── Makefile
 ```
 
 ### 2.2 Linking
 
 ```bash
-g++ -o myapp myapp.cpp -I./include -L./lib -lshmmediawrap -DTVU_LINUX=1
+g++ -o myapp myapp.cpp -I./include -L./lib -lshmmediawrap -lpthread -lrt -lz -DTVU_LINUX=1
 ```
 
 Define `TVU_LINUX=1` when compiling on Linux.
+
+`-lz` is required: the library references zlib's `compress`/`uncompress`.
+Omitting it produces `undefined reference to 'compress'` at link time.
+
+At run time the loader must be able to find the library. Either set
+`LD_LIBRARY_PATH`, or link with an rpath:
+
+```bash
+export LD_LIBRARY_PATH=/path/to/lib
+# or add to the link line:
+#   -Wl,-rpath,/path/to/lib
+```
 
 ### 2.3 Include
 
@@ -870,6 +888,10 @@ typedef enum {
 } libshm_media_type_t;
 ```
 
+`LIBSHM_MEDIA_TYPE_MPEG_TS_DATA` (`'TMTS'`, `0x53544D54`) tags an item whose user
+data is a muxed MPEG transport stream. See [8.5](#85-mpeg-ts-over-shared-memory-tvutsshm)
+for the full transport contract.
+
 ### 8.2 Reading Extension Data
 
 ```c
@@ -911,6 +933,120 @@ int LibshmMediaExtDataParseBuff(libshmmedia_extended_data_context_t h, const uin
 unsigned int LibshmMediaExtDataGetEntryCounts(libshmmedia_extended_data_context_t h);
 void LibshmMediaExtDataDestroyHandle(libshmmedia_extended_data_context_t *ph);
 ```
+
+### 8.5 MPEG-TS over Shared Memory (`tvutsshm`)
+
+A muxed MPEG transport stream can be carried over shared memory as a byte pipe,
+independent of any delivery protocol. This is the `tvutsshm` path.
+
+#### 8.5.1 Transport model
+
+TS bytes are carried in the **user data** field of a variable-sized item
+(`LibViShm` API family), tagged with `LIBSHM_MEDIA_TYPE_MPEG_TS_DATA`:
+
+```c
+libshm_media_head_param_t ohp = {0};      // no format description for pure TS
+libshm_media_item_param_t ohi = {0};
+
+ohi.i_userDataType = LIBSHM_MEDIA_TYPE_MPEG_TS_DATA;   // 'TMTS' = 0x53544D54
+ohi.p_userData     = ts_bytes;
+ohi.i_userDataLen  = len;
+ohi.i64_userDataCT = now_ms();
+
+if (LibViShmMediaPollSendable(h, 0) > 0)
+    LibViShmMediaSendData(h, &ohp, &ohi);
+```
+
+The video, audio and subtitle fields of the item stay empty. This is a pure
+transport-stream byte pipe, not decoded or frame-structured media.
+
+A consumer reads with `LibViShmMediaPollReadData()` and **must check the type tag
+before interpreting the payload**:
+
+```c
+ret = LibViShmMediaPollReadData(h, &ohp, &ohi, timeout_ms);
+
+if (ret > 0 && ohi.i_userDataType == LIBSHM_MEDIA_TYPE_MPEG_TS_DATA)
+    consume(ohi.p_userData, ohi.i_userDataLen);
+```
+
+`ohi.p_userData` points into the shared segment. It is valid only until the next
+read call, and the writer may overwrite it at any time — copy or consume it
+immediately.
+
+#### 8.5.2 Responsibilities
+
+The library transports and tags the bytes. It does **not** mux, demux, parse or
+validate the transport stream. Muxing is the producer's responsibility and
+parsing is the consumer's.
+
+| Layer | Responsibility |
+|-------|----------------|
+| Application (`tvutsshm://0?name=X`) | Declares that segment X carries MPEG-TS |
+| Item tag (`'TMTS'`) | Marks each individual item as TS payload |
+| `libshmmedia` | Transports and tags bytes |
+| Consumer | Parses and validates the TS |
+
+The URL is interpreted at the application layer; the library has no knowledge of
+it. An application integrating directly against the SDK opens the segment by
+name and filters on the type tag.
+
+#### 8.5.3 Framing
+
+Every item must hold a whole number of 188-byte TS packets. **1316 bytes
+(7 × 188) is recommended**, matching the standard UDP/SRT payload size. The
+library does not enforce this; it is a convention that producers and consumers
+of `tvutsshm` segments are expected to honour.
+
+#### 8.5.4 Flow control
+
+There is exactly one **writer** per segment and any number of **readers**. The
+writer never blocks, so a slow or crashed consumer cannot stall or degrade the
+producer. The cost of that guarantee falls entirely on the reader:
+
+> There is no backpressure and no retransmission. A reader that consumes slower
+> than the writer produces will silently lose data.
+
+This matters specifically for TS analysis: lost items look *exactly* like
+continuity counter errors, PCR discontinuities and PID loss in the recovered
+stream. They are artifacts of the reader, not defects in the source. An analyser
+that does not account for this will report false positives against a healthy
+stream.
+
+**Detecting reader-side loss.** Monitor the distance between the write and read
+index — the "lag". The ring holds `item_count` items, so a lag approaching
+`item_count` means data is about to be lost, and a lag above it means the writer
+has lapped the reader and data is definitely gone.
+
+Do **not** rely on detecting a jump in the read index. In the common failure
+mode the read index advances by exactly one slot per read and looks perfectly
+healthy, while the slots being read have already been overwritten with newer
+data. Measured on a deliberately overloaded consumer, read-index jumps caught
+none of the resulting continuity errors while lag monitoring flagged the
+condition on tens of thousands of reads.
+
+**Recommendation:** keep the read loop thin — `LibViShmMediaPollReadData()` plus
+a copy into your own queue, nothing more — and run parsing and analysis on
+separate threads. Never do per-packet analysis inline in the read loop.
+
+#### 8.5.5 Index arithmetic
+
+Read and write indices are not free-running counters. They wrap within a space
+of `2 * item_count`. Differences must therefore be taken modulo that value; a
+naive subtraction underflows on wrap and reports a spurious jump.
+
+```c
+uint64_t modulus = 2ULL * LibViShmMediaGetItemCounts(h);
+uint64_t lag     = (windex + modulus - rindex) % modulus;
+```
+
+#### 8.5.6 Sample code
+
+`mpegts_write_sample_code.cpp` and `mpegts_read_sample_code.cpp` in the sample
+directory are complete, buildable reference implementations of both sides. The
+reader also validates TS structure and reports reader-side loss as described
+above. `make_test_ts.py` generates a synthetic TS with strictly correct
+continuity counters for verifying an integration before using real content.
 
 ---
 
@@ -1251,3 +1387,14 @@ tvushm://0?v=<video_shm>&a=<audio_shm>&d=<data_shm>
 ```
 
 Example: `tvushm://0?v=vx1&a=ax1&d=dx1`
+
+For a segment carrying a muxed MPEG transport stream (see [8.5](#85-mpeg-ts-over-shared-memory-tvutsshm)):
+
+```
+tvutsshm://0?name=<shm_name>
+```
+
+Example: `tvutsshm://0?name=LiveTransmit`
+
+These URLs are parsed by the application, not by the library. Code linking
+directly against the SDK opens a segment by name.

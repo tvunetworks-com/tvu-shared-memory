@@ -7,7 +7,7 @@ PRJ_PATH=$(shell pwd)
 PRJ_OBJ=$(PRJ_PATH)/obj
 SUF_SRC=.cpp
 CFLAGS+= -g -fPIC -DTVU_LINUX -I$(PRJ_PATH)/../include
-LDFLAGS+= -L$(PRJ_PATH)/../lib -lshmmediawrap -pthread -lrt
+LDFLAGS+= -L$(PRJ_PATH)/../lib -lshmmediawrap -pthread -lrt -lz
 
 TEST_SRCS=$(wildcard $(PRJ_PATH)/*$(SUF_SRC))
 TEST_OBJS=$(patsubst %$(SUF_SRC), %.o, $(TEST_SRCS))
